@@ -15,6 +15,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RequestIdMiddleware } from './common/request-id/request-id.middleware';
 import { RedisModule } from './redis/redis.module';
+import { ProjectInvitationsModule } from './project-invitations/project-invitations.module';
 
 
 @Module({
@@ -51,6 +52,8 @@ import { RedisModule } from './redis/redis.module';
     AuthModule,
 
     RedisModule,
+
+    ProjectInvitationsModule,
   ],
 
   controllers: [AppController],

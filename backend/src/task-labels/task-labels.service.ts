@@ -28,11 +28,12 @@ export class TaskLabelsService {
         taskId: string,
         labelId: string,
     ): Promise<TaskLabel> {
-        const task = await this.taskRepository.findOne({
-            where: {
-                id: taskId,
-            },
-        });
+        const task =
+            await this.taskRepository.findOne({
+                where: {
+                    id: taskId,
+                },
+            });
 
         if (!task) {
             throw new NotFoundException(
@@ -40,11 +41,12 @@ export class TaskLabelsService {
             );
         }
 
-        const label = await this.labelRepository.findOne({
-            where: {
-                id: labelId,
-            },
-        });
+        const label =
+            await this.labelRepository.findOne({
+                where: {
+                    id: labelId,
+                },
+            });
 
         if (!label) {
             throw new NotFoundException(
@@ -52,7 +54,9 @@ export class TaskLabelsService {
             );
         }
 
-        if (label.projectId !== task.projectId) {
+        if (
+            label.projectId !== task.projectId
+        ) {
             throw new ConflictException(
                 'Label does not belong to the task project',
             );
@@ -78,8 +82,14 @@ export class TaskLabelsService {
                 labelId,
             });
 
-        return this.taskLabelRepository.save(
-            taskLabel,
+        const savedTaskLabel =
+            await this.taskLabelRepository.save(
+                taskLabel,
+            );
+
+        return this.findOne(
+            savedTaskLabel.taskId,
+            savedTaskLabel.labelId,
         );
     }
 
@@ -106,6 +116,9 @@ export class TaskLabelsService {
             relations: {
                 label: true,
             },
+            order: {
+                id: 'ASC',
+            },
         });
     }
 
@@ -113,6 +126,19 @@ export class TaskLabelsService {
         taskId: string,
         labelId: string,
     ): Promise<void> {
+        const task =
+            await this.taskRepository.findOne({
+                where: {
+                    id: taskId,
+                },
+            });
+
+        if (!task) {
+            throw new NotFoundException(
+                'Task not found',
+            );
+        }
+
         const taskLabel =
             await this.taskLabelRepository.findOne({
                 where: {
@@ -130,5 +156,29 @@ export class TaskLabelsService {
         await this.taskLabelRepository.remove(
             taskLabel,
         );
+    }
+
+    private async findOne(
+        taskId: string,
+        labelId: string,
+    ): Promise<TaskLabel> {
+        const taskLabel =
+            await this.taskLabelRepository.findOne({
+                where: {
+                    taskId,
+                    labelId,
+                },
+                relations: {
+                    label: true,
+                },
+            });
+
+        if (!taskLabel) {
+            throw new NotFoundException(
+                'Task label not found',
+            );
+        }
+
+        return taskLabel;
     }
 }

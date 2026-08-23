@@ -6,6 +6,7 @@ import {
     Param,
     Patch,
     Post,
+    Req,
     UseGuards,
 } from '@nestjs/common';
 
@@ -28,10 +29,12 @@ export class ProjectMembersController {
     create(
         @Param('projectId') projectId: string,
         @Body() createDto: CreateProjectMemberDto,
+        @Req() request: any,
     ) {
-        return this.projectMembersService.create(
+        return this.projectMembersService.createInvitation(
             projectId,
-            createDto,
+            createDto.userId,
+            request.user.userId,
         );
     }
 
@@ -77,6 +80,11 @@ export class ProjectMembersController {
         @Param('projectId') projectId: string,
         @Param('userId') userId: string,
     ) {
+        console.log('DELETE MEMBER ROUTE HIT:', {
+            projectId,
+            userId,
+        });
+
         return this.projectMembersService.remove(
             projectId,
             userId,

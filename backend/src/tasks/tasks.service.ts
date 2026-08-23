@@ -1,7 +1,7 @@
 import {
     Injectable,
     NotFoundException,
-    ForbiddenException
+    ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -10,6 +10,7 @@ import { Task } from './entities/task.entity';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { TaskQueryDto } from './dto/task-query.dto';
+
 import { ProjectMembersService } from '../project-members/project-members.service';
 import { ProjectMemberRole } from '../project-members/entities/project-member.entity';
 
@@ -18,6 +19,7 @@ export class TasksService {
     constructor(
         @InjectRepository(Task)
         private readonly taskRepository: Repository<Task>,
+
         private readonly projectMembersService: ProjectMembersService,
     ) { }
 
@@ -77,9 +79,18 @@ export class TasksService {
 
         const queryBuilder = this.taskRepository
             .createQueryBuilder('task')
-            .leftJoinAndSelect('task.project', 'project')
-            .leftJoinAndSelect('task.creator', 'creator')
-            .leftJoinAndSelect('task.assignee', 'assignee')
+            .leftJoinAndSelect(
+                'task.project',
+                'project',
+            )
+            .leftJoinAndSelect(
+                'task.creator',
+                'creator',
+            )
+            .leftJoinAndSelect(
+                'task.assignee',
+                'assignee',
+            )
             .innerJoin(
                 'project_members',
                 'projectMember',
@@ -127,11 +138,15 @@ export class TasksService {
             );
         }
 
-        const [data, total] = await queryBuilder
-            .orderBy('task.createdAt', 'DESC')
-            .skip(skip)
-            .take(limit)
-            .getManyAndCount();
+        const [data, total] =
+            await queryBuilder
+                .orderBy(
+                    'task.createdAt',
+                    'DESC',
+                )
+                .skip(skip)
+                .take(limit)
+                .getManyAndCount();
 
         return {
             data,
@@ -139,7 +154,9 @@ export class TasksService {
                 page,
                 limit,
                 total,
-                totalPages: Math.ceil(total / limit),
+                totalPages: Math.ceil(
+                    total / limit,
+                ),
             },
         };
     }
@@ -193,7 +210,9 @@ export class TasksService {
         }
 
         // Assignee mới phải thuộc Project
-        if (updateTaskDto.assigneeId !== undefined) {
+        if (
+            updateTaskDto.assigneeId !== undefined
+        ) {
             const isAssigneeMember =
                 await this.projectMembersService.isMember(
                     task.projectId,
@@ -207,7 +226,10 @@ export class TasksService {
             }
         }
 
-        Object.assign(task, updateTaskDto);
+        Object.assign(
+            task,
+            updateTaskDto,
+        );
 
         return this.taskRepository.save(task);
     }
@@ -215,26 +237,31 @@ export class TasksService {
     async remove(
         id: string,
         userId: string,
-    ): Promise<void> {
+    ): Promise<{ message: string }> {
         const task = await this.findOne(
             id,
             userId,
         );
 
         await this.taskRepository.remove(task);
+
+        return {
+            message: 'Task deleted successfully',
+        };
     }
 
     async findOneWithoutAuth(
         id: string,
     ): Promise<Task> {
-        const task = await this.taskRepository.findOne({
-            where: { id },
-            relations: {
-                project: true,
-                creator: true,
-                assignee: true,
-            },
-        });
+        const task =
+            await this.taskRepository.findOne({
+                where: { id },
+                relations: {
+                    project: true,
+                    creator: true,
+                    assignee: true,
+                },
+            });
 
         if (!task) {
             throw new NotFoundException(

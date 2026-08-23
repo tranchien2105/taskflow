@@ -6,13 +6,13 @@ import {
     Param,
     Patch,
     Post,
+    UseGuards,
 } from '@nestjs/common';
 
 import { LabelsService } from './labels.service';
-
 import { CreateLabelDto } from './dto/create-label.dto';
 import { UpdateLabelDto } from './dto/update-label.dto';
-import { UseGuards } from '@nestjs/common';
+
 import { ProjectManagerGuard } from '../project-manager/project-manager.guard';
 import { ProjectAccessGuard } from '../project-access/project-access.guard';
 

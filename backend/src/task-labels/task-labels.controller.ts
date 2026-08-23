@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 
 import { TaskLabelsService } from './task-labels.service';
+
 import { TaskProjectManagerGuard } from '../task-project-manager/task-project-manager.guard';
 import { TaskProjectMemberGuard } from '../task-project-member/task-project-member.guard';
 
