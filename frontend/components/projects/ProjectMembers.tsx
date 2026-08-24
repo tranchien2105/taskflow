@@ -1,6 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import {
+    useEffect,
+    useRef,
+    useState,
+} from 'react';
+
+import { io, Socket } from 'socket.io-client';
 import { toast } from 'sonner';
 
 type User = {
@@ -27,19 +33,21 @@ export default function ProjectMembers({
     projectId,
     canManage,
 }: ProjectMembersProps) {
-    const [members, setMembers] = useState<ProjectMember[]>(
-        [],
-    );
+    const [members, setMembers] = useState<
+        ProjectMember[]
+    >([]);
 
     const [loading, setLoading] = useState(true);
 
-    const [showAddForm, setShowAddForm] = useState(false);
+    const [showAddForm, setShowAddForm] =
+        useState(false);
 
     const [search, setSearch] = useState('');
 
     const [users, setUsers] = useState<User[]>([]);
 
-    const [searching, setSearching] = useState(false);
+    const [searching, setSearching] =
+        useState(false);
 
     const [addingUserId, setAddingUserId] =
         useState<string | null>(null);
@@ -50,6 +58,25 @@ export default function ProjectMembers({
     const [removingUserId, setRemovingUserId] =
         useState<string | null>(null);
 
+    /**
+     * IDs of users that are currently online.
+     *
+     * Example:
+     *
+     * [
+     *   "user-id-1",
+     *   "user-id-2",
+     * ]
+     */
+    const [onlineUserIds, setOnlineUserIds] =
+        useState<string[]>([]);
+
+    const socketRef =
+        useRef<Socket | null>(null);
+
+    /**
+     * Load project members
+     */
     const loadMembers = async () => {
         try {
             setLoading(true);
@@ -58,12 +85,15 @@ export default function ProjectMembers({
                 localStorage.getItem('accessToken');
 
             if (!token) {
-                toast.error('Your session has expired.');
+                toast.error(
+                    'Your session has expired.',
+                );
+
                 return;
             }
 
             const response = await fetch(
-                `http://localhost:3000/projects/${projectId}/members`,
+                `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/members`,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -76,8 +106,9 @@ export default function ProjectMembers({
             if (!response.ok) {
                 toast.error(
                     data.message ||
-                    'Failed to load members.',
+                        'Failed to load members.',
                 );
+
                 return;
             }
 
@@ -93,14 +124,226 @@ export default function ProjectMembers({
         }
     };
 
+    /**
+     * Load members when project changes
+     */
     useEffect(() => {
         loadMembers();
     }, [projectId]);
 
+    /**
+     * Check whether user is online
+     */
+    const isOnline = (userId: string) => {
+        return onlineUserIds.includes(userId);
+    };
+
+    /**
+     * Project realtime socket
+     *
+     * Responsibilities:
+     *
+     * 1. Connect socket
+     * 2. Authenticate with access token
+     * 3. Join project room
+     * 4. Load current online users
+     * 5. Listen for project member added
+     * 6. Listen for user online
+     * 7. Listen for user offline
+     */
+    useEffect(() => {
+        const token =
+            localStorage.getItem('accessToken');
+
+        if (!token) {
+            return;
+        }
+
+        const socket = io(
+            process.env.NEXT_PUBLIC_API_URL,
+            {
+                auth: {
+                    token,
+                },
+                withCredentials: true,
+            },
+        );
+
+        socketRef.current = socket;
+
+        socket.on('connect', () => {
+            console.log(
+                'Project members socket connected:',
+                socket.id,
+            );
+
+            /**
+             * Tell backend which project
+             * this client is currently viewing.
+             */
+            socket.emit('project.join', {
+                projectId,
+            });
+        });
+
+        /**
+         * Current online users
+         *
+         * Backend should emit:
+         *
+         * user.online.users
+         *
+         * {
+         *   userIds: string[]
+         * }
+         */
+        socket.on(
+            'user.online.users',
+            (data: {
+                userIds: string[];
+            }) => {
+                console.log(
+                    'Current online users:',
+                    data.userIds,
+                );
+
+                setOnlineUserIds(
+                    data.userIds,
+                );
+            },
+        );
+
+        /**
+         * User became online
+         */
+        socket.on(
+            'user.online',
+            (data: {
+                userId: string;
+            }) => {
+                console.log(
+                    'User online:',
+                    data.userId,
+                );
+
+                setOnlineUserIds(
+                    (currentIds) => {
+                        /**
+                         * Prevent duplicate user ID
+                         */
+                        if (
+                            currentIds.includes(
+                                data.userId,
+                            )
+                        ) {
+                            return currentIds;
+                        }
+
+                        return [
+                            ...currentIds,
+                            data.userId,
+                        ];
+                    },
+                );
+            },
+        );
+
+        /**
+         * User became offline
+         */
+        socket.on(
+            'user.offline',
+            (data: {
+                userId: string;
+            }) => {
+                console.log(
+                    'User offline:',
+                    data.userId,
+                );
+
+                setOnlineUserIds(
+                    (currentIds) =>
+                        currentIds.filter(
+                            (userId) =>
+                                userId !==
+                                data.userId,
+                        ),
+                );
+            },
+        );
+
+        /**
+         * New member joined project
+         */
+        socket.on(
+            'project.member.added',
+            (member: ProjectMember) => {
+                console.log(
+                    'Project member added:',
+                    member,
+                );
+
+                setMembers(
+                    (currentMembers) => {
+                        /**
+                         * Prevent duplicate member
+                         */
+                        const exists =
+                            currentMembers.some(
+                                (
+                                    currentMember,
+                                ) =>
+                                    currentMember.userId ===
+                                    member.userId,
+                            );
+
+                        if (exists) {
+                            return currentMembers;
+                        }
+
+                        return [
+                            ...currentMembers,
+                            member,
+                        ];
+                    },
+                );
+
+                toast.success(
+                    `${
+                        member.user?.name ??
+                        'New member'
+                    } joined the project.`,
+                );
+            },
+        );
+
+        socket.on('connect_error', (error) => {
+            console.error(
+                'Project members socket connection error:',
+                error,
+            );
+        });
+
+        socket.on('disconnect', () => {
+            console.log(
+                'Project members socket disconnected',
+            );
+        });
+
+        return () => {
+            socket.disconnect();
+            socketRef.current = null;
+        };
+    }, [projectId]);
+
+    /**
+     * Search users
+     */
     useEffect(() => {
         if (!showAddForm) {
             setSearch('');
             setUsers([]);
+
             return;
         }
 
@@ -108,72 +351,94 @@ export default function ProjectMembers({
 
         if (!keyword) {
             setUsers([]);
+
             return;
         }
 
-        const timer = setTimeout(async () => {
-            try {
-                setSearching(true);
+        const timer = setTimeout(
+            async () => {
+                try {
+                    setSearching(true);
 
-                const token =
-                    localStorage.getItem('accessToken');
+                    const token =
+                        localStorage.getItem(
+                            'accessToken',
+                        );
 
-                if (!token) {
+                    if (!token) {
+                        toast.error(
+                            'Your session has expired.',
+                        );
+
+                        return;
+                    }
+
+                    const response =
+                        await fetch(
+                            `${process.env.NEXT_PUBLIC_API_URL}/users?search=${encodeURIComponent(
+                                keyword,
+                            )}`,
+                            {
+                                headers: {
+                                    Authorization: `Bearer ${token}`,
+                                },
+                            },
+                        );
+
+                    const data =
+                        await response.json();
+
+                    if (!response.ok) {
+                        toast.error(
+                            data.message ||
+                                'Failed to search users.',
+                        );
+
+                        return;
+                    }
+
+                    setUsers(data);
+                } catch (error) {
+                    console.error(error);
+
                     toast.error(
-                        'Your session has expired.',
+                        'Unable to search users.',
                     );
-                    return;
+                } finally {
+                    setSearching(false);
                 }
-
-                const response = await fetch(
-                    `http://localhost:3000/users?search=${encodeURIComponent(
-                        keyword,
-                    )}`,
-                    {
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                        },
-                    },
-                );
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    toast.error(
-                        data.message ||
-                        'Failed to search users.',
-                    );
-                    return;
-                }
-
-                setUsers(data);
-            } catch (error) {
-                console.error(error);
-
-                toast.error(
-                    'Unable to search users.',
-                );
-            } finally {
-                setSearching(false);
-            }
-        }, 300);
+            },
+            300,
+        );
 
         return () => {
             clearTimeout(timer);
         };
     }, [search, showAddForm]);
 
-    const isAlreadyMember = (userId: string) => {
+    /**
+     * Check whether user is already a member
+     */
+    const isAlreadyMember = (
+        userId: string,
+    ) => {
         return members.some(
-            (member) => member.userId === userId,
+            (member) =>
+                member.userId === userId,
         );
     };
 
-    const handleAddMember = async (user: User) => {
+    /**
+     * Send project invitation
+     */
+    const handleAddMember = async (
+        user: User,
+    ) => {
         if (isAlreadyMember(user.id)) {
             toast.error(
                 'This user is already a member.',
             );
+
             return;
         }
 
@@ -187,11 +452,12 @@ export default function ProjectMembers({
                 toast.error(
                     'Your session has expired.',
                 );
+
                 return;
             }
 
             const response = await fetch(
-                `http://localhost:3000/projects/${projectId}/members`,
+                `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/members`,
                 {
                     method: 'POST',
                     headers: {
@@ -210,8 +476,9 @@ export default function ProjectMembers({
             if (!response.ok) {
                 toast.error(
                     data.message ||
-                    'Failed to add member.',
+                        'Failed to add member.',
                 );
+
                 return;
             }
 
@@ -222,6 +489,13 @@ export default function ProjectMembers({
             setSearch('');
             setUsers([]);
 
+            /**
+             * This API creates an invitation.
+             *
+             * The user will appear in this
+             * project only after accepting
+             * the invitation.
+             */
             await loadMembers();
         } catch (error) {
             console.error(error);
@@ -234,6 +508,9 @@ export default function ProjectMembers({
         }
     };
 
+    /**
+     * Change member role
+     */
     const handleChangeRole = async (
         member: ProjectMember,
     ) => {
@@ -243,7 +520,9 @@ export default function ProjectMembers({
                 : 'MEMBER';
 
         try {
-            setUpdatingUserId(member.userId);
+            setUpdatingUserId(
+                member.userId,
+            );
 
             const token =
                 localStorage.getItem('accessToken');
@@ -252,11 +531,12 @@ export default function ProjectMembers({
                 toast.error(
                     'Your session has expired.',
                 );
+
                 return;
             }
 
             const response = await fetch(
-                `http://localhost:3000/projects/${projectId}/members/${member.userId}`,
+                `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/members/${member.userId}`,
                 {
                     method: 'PATCH',
                     headers: {
@@ -275,8 +555,9 @@ export default function ProjectMembers({
             if (!response.ok) {
                 toast.error(
                     data.message ||
-                    'Failed to update role.',
+                        'Failed to update role.',
                 );
+
                 return;
             }
 
@@ -296,19 +577,25 @@ export default function ProjectMembers({
         }
     };
 
+    /**
+     * Remove member
+     */
     const handleRemoveMember = async (
         member: ProjectMember,
     ) => {
-        const confirmed = window.confirm(
-            `Remove ${member.user.name} from this project?`,
-        );
+        const confirmed =
+            window.confirm(
+                `Remove ${member.user.name} from this project?`,
+            );
 
         if (!confirmed) {
             return;
         }
 
         try {
-            setRemovingUserId(member.userId);
+            setRemovingUserId(
+                member.userId,
+            );
 
             const token =
                 localStorage.getItem('accessToken');
@@ -317,11 +604,12 @@ export default function ProjectMembers({
                 toast.error(
                     'Your session has expired.',
                 );
+
                 return;
             }
 
             const response = await fetch(
-                `http://localhost:3000/projects/${projectId}/members/${member.userId}`,
+                `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/members/${member.userId}`,
                 {
                     method: 'DELETE',
                     headers: {
@@ -330,7 +618,9 @@ export default function ProjectMembers({
                 },
             );
 
-            let data: { message?: string } = {};
+            let data: {
+                message?: string;
+            } = {};
 
             const contentType =
                 response.headers.get(
@@ -342,23 +632,26 @@ export default function ProjectMembers({
                     'application/json',
                 )
             ) {
-                data = await response.json();
+                data =
+                    await response.json();
             }
 
             if (!response.ok) {
                 toast.error(
                     data.message ||
-                    'Failed to remove member.',
+                        'Failed to remove member.',
                 );
+
                 return;
             }
 
-            setMembers((currentMembers) =>
-                currentMembers.filter(
-                    (currentMember) =>
-                        currentMember.userId !==
-                        member.userId,
-                ),
+            setMembers(
+                (currentMembers) =>
+                    currentMembers.filter(
+                        (currentMember) =>
+                            currentMember.userId !==
+                            member.userId,
+                    ),
             );
 
             toast.success(
@@ -446,9 +739,12 @@ export default function ProjectMembers({
                             <input
                                 type="text"
                                 value={search}
-                                onChange={(event) =>
+                                onChange={(
+                                    event,
+                                ) =>
                                     setSearch(
-                                        event.target.value,
+                                        event.target
+                                            .value,
                                     )
                                 }
                                 placeholder="search user..."
@@ -467,89 +763,99 @@ export default function ProjectMembers({
                                         </span>{' '}
                                         searching...
                                     </div>
-                                ) : users.length === 0 ? (
+                                ) : users.length ===
+                                  0 ? (
                                     <div className="px-4 py-7 text-center">
                                         <div className="font-mono text-xl text-rose-300">
                                             {'//'}
                                         </div>
 
                                         <p className="mt-2 font-mono text-xs font-semibold text-gray-700">
-                                            no users found
+                                            no_users_found()
                                         </p>
 
                                         <p className="mt-1 text-xs text-gray-400">
-                                            Try another name or
+                                            Try another
+                                            name or
                                             email.
                                         </p>
                                     </div>
                                 ) : (
                                     <div className="divide-y divide-gray-100">
-                                        {users.map((user) => {
-                                            const alreadyMember =
-                                                isAlreadyMember(
-                                                    user.id,
+                                        {users.map(
+                                            (
+                                                user,
+                                            ) => {
+                                                const alreadyMember =
+                                                    isAlreadyMember(
+                                                        user.id,
+                                                    );
+
+                                                const adding =
+                                                    addingUserId ===
+                                                    user.id;
+
+                                                const initial =
+                                                    user.name
+                                                        ?.charAt(
+                                                            0,
+                                                        )
+                                                        .toUpperCase() ||
+                                                    '?';
+
+                                                return (
+                                                    <div
+                                                        key={
+                                                            user.id
+                                                        }
+                                                        className="flex items-center gap-3 px-4 py-3 transition hover:bg-rose-50/40"
+                                                    >
+                                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-rose-200 bg-rose-50 font-mono text-sm font-bold text-rose-500">
+                                                            {
+                                                                initial
+                                                            }
+                                                        </div>
+
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="truncate text-sm font-semibold text-gray-900">
+                                                                {
+                                                                    user.name
+                                                                }
+                                                            </p>
+
+                                                            <p className="truncate font-mono text-[11px] text-gray-400">
+                                                                {
+                                                                    user.email
+                                                                }
+                                                            </p>
+                                                        </div>
+
+                                                        {alreadyMember ? (
+                                                            <span className="border border-emerald-200 bg-emerald-50 px-3 py-1.5 font-mono text-[10px] font-bold uppercase text-emerald-600">
+                                                                added
+                                                            </span>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    handleAddMember(
+                                                                        user,
+                                                                    )
+                                                                }
+                                                                disabled={
+                                                                    adding
+                                                                }
+                                                                className="border border-gray-900 bg-gray-900 px-3 py-2 font-mono text-[10px] font-bold text-white transition hover:border-rose-500 hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
+                                                            >
+                                                                {adding
+                                                                    ? 'adding...'
+                                                                    : 'add'}
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 );
-
-                                            const adding =
-                                                addingUserId ===
-                                                user.id;
-
-                                            const initial =
-                                                user.name
-                                                    ?.charAt(
-                                                        0,
-                                                    )
-                                                    .toUpperCase() ||
-                                                '?';
-
-                                            return (
-                                                <div
-                                                    key={user.id}
-                                                    className="flex items-center gap-3 px-4 py-3 transition hover:bg-rose-50/40"
-                                                >
-                                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-rose-200 bg-rose-50 font-mono text-sm font-bold text-rose-500">
-                                                        {initial}
-                                                    </div>
-
-                                                    <div className="min-w-0 flex-1">
-                                                        <p className="truncate text-sm font-semibold text-gray-900">
-                                                            {
-                                                                user.name
-                                                            }
-                                                        </p>
-
-                                                        <p className="truncate font-mono text-[11px] text-gray-400">
-                                                            {
-                                                                user.email
-                                                            }
-                                                        </p>
-                                                    </div>
-
-                                                    {alreadyMember ? (
-                                                        <span className="border border-emerald-200 bg-emerald-50 px-3 py-1.5 font-mono text-[10px] font-bold uppercase text-emerald-600">
-                                                            added
-                                                        </span>
-                                                    ) : (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                                handleAddMember(
-                                                                    user,
-                                                                )
-                                                            }
-                                                            disabled={
-                                                                adding
-                                                            }
-                                                            className="border border-gray-900 bg-gray-900 px-3 py-2 font-mono text-[10px] font-bold text-white transition hover:border-rose-500 hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
-                                                        >
-                                                            {adding
-                                                                ? 'adding...'
-                                                                : 'add'}
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
+                                            },
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -562,21 +868,24 @@ export default function ProjectMembers({
             <div className="p-6 sm:p-7">
                 {loading ? (
                     <div className="space-y-3">
-                        {[1, 2, 3].map((item) => (
-                            <div
-                                key={item}
-                                className="flex animate-pulse items-center gap-4 border border-gray-100 p-4"
-                            >
-                                <div className="h-10 w-10 bg-gray-100" />
+                        {[1, 2, 3].map(
+                            (item) => (
+                                <div
+                                    key={item}
+                                    className="flex animate-pulse items-center gap-4 border border-gray-100 p-4"
+                                >
+                                    <div className="h-10 w-10 bg-gray-100" />
 
-                                <div className="flex-1 space-y-2">
-                                    <div className="h-3 w-32 bg-gray-100" />
-                                    <div className="h-2.5 w-48 bg-gray-50" />
+                                    <div className="flex-1 space-y-2">
+                                        <div className="h-3 w-32 bg-gray-100" />
+
+                                        <div className="h-2.5 w-48 bg-gray-50" />
+                                    </div>
+
+                                    <div className="h-8 w-20 bg-gray-100" />
                                 </div>
-
-                                <div className="h-8 w-20 bg-gray-100" />
-                            </div>
-                        ))}
+                            ),
+                        )}
                     </div>
                 ) : members.length === 0 ? (
                     <div className="border border-dashed border-rose-200 bg-rose-50/20 px-6 py-12 text-center">
@@ -589,9 +898,9 @@ export default function ProjectMembers({
                         </h3>
 
                         <p className="mx-auto mt-2 max-w-sm text-sm text-gray-500">
-                            Add someone to this project
-                            so you can start
-                            collaborating.
+                            Add someone to this
+                            project so you can
+                            start collaborating.
                         </p>
 
                         {canManage && (
@@ -610,140 +919,179 @@ export default function ProjectMembers({
                     </div>
                 ) : (
                     <div className="space-y-2">
-                        {members.map((member) => {
-                            const isManager =
-                                member.role ===
-                                'MANAGER';
+                        {members.map(
+                            (member) => {
+                                const isManager =
+                                    member.role ===
+                                    'MANAGER';
 
-                            const updating =
-                                updatingUserId ===
-                                member.userId;
+                                const updating =
+                                    updatingUserId ===
+                                    member.userId;
 
-                            const removing =
-                                removingUserId ===
-                                member.userId;
+                                const removing =
+                                    removingUserId ===
+                                    member.userId;
 
-                            const initial =
-                                member.user?.name
-                                    ?.charAt(0)
-                                    .toUpperCase() ||
-                                '?';
+                                const online =
+                                    isOnline(
+                                        member.userId,
+                                    );
 
-                            return (
-                                <div
-                                    key={member.userId}
-                                    className="group flex flex-col gap-4 border border-gray-100 bg-gray-50/40 p-4 transition hover:border-rose-200 hover:bg-white sm:flex-row sm:items-center sm:justify-between"
-                                >
-                                    <div className="flex min-w-0 items-center gap-3">
-                                        <div
-                                            className={`flex h-10 w-10 shrink-0 items-center justify-center border font-mono text-sm font-bold ${isManager
-                                                    ? 'border-purple-200 bg-purple-50 text-purple-600'
-                                                    : 'border-rose-200 bg-rose-50 text-rose-500'
+                                const initial =
+                                    member.user?.name
+                                        ?.charAt(
+                                            0,
+                                        )
+                                        .toUpperCase() ||
+                                    '?';
+
+                                return (
+                                    <div
+                                        key={
+                                            member.userId
+                                        }
+                                        className="group flex flex-col gap-4 border border-gray-100 bg-gray-50/40 p-4 transition hover:border-rose-200 hover:bg-white sm:flex-row sm:items-center sm:justify-between"
+                                    >
+                                        <div className="flex min-w-0 items-center gap-3">
+                                            {/* Avatar */}
+                                            <div
+                                                className={`relative flex h-10 w-10 shrink-0 items-center justify-center border font-mono text-sm font-bold ${
+                                                    isManager
+                                                        ? 'border-purple-200 bg-purple-50 text-purple-600'
+                                                        : 'border-rose-200 bg-rose-50 text-rose-500'
                                                 }`}
-                                        >
-                                            {initial}
-                                        </div>
+                                            >
+                                                {initial}
 
-                                        <div className="min-w-0">
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <p className="truncate text-sm font-semibold text-gray-900">
+                                                {/* Online indicator */}
+                                                <span
+                                                    className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white ${
+                                                        online
+                                                            ? 'bg-emerald-500'
+                                                            : 'bg-gray-300'
+                                                    }`}
+                                                />
+                                            </div>
+
+                                            <div className="min-w-0">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <p className="truncate text-sm font-semibold text-gray-900">
+                                                        {
+                                                            member
+                                                                .user
+                                                                ?.name
+                                                        }
+                                                    </p>
+
+                                                    <span
+                                                        className={`border px-2 py-0.5 font-mono text-[9px] font-bold uppercase ${
+                                                            isManager
+                                                                ? 'border-purple-200 bg-purple-50 text-purple-600'
+                                                                : 'border-gray-200 bg-gray-50 text-gray-500'
+                                                        }`}
+                                                    >
+                                                        {
+                                                            member.role
+                                                        }
+                                                    </span>
+                                                </div>
+
+                                                <p className="mt-1 truncate font-mono text-[11px] text-gray-400">
                                                     {
                                                         member
                                                             .user
-                                                            ?.name
+                                                            ?.email
                                                     }
                                                 </p>
 
-                                                <span
-                                                    className={`border px-2 py-0.5 font-mono text-[9px] font-bold uppercase ${isManager
-                                                            ? 'border-purple-200 bg-purple-50 text-purple-600'
-                                                            : 'border-gray-200 bg-gray-50 text-gray-500'
-                                                        }`}
+                                                {/* Online / Offline */}
+                                                <p
+                                                    className={`mt-1 font-mono text-[10px] font-semibold ${
+                                                        online
+                                                            ? 'text-emerald-500'
+                                                            : 'text-slate-400'
+                                                    }`}
                                                 >
-                                                    {
-                                                        member.role
-                                                    }
-                                                </span>
+                                                    {online
+                                                        ? '● Online'
+                                                        : '○ Offline'}
+                                                </p>
                                             </div>
-
-                                            <p className="mt-1 truncate font-mono text-[11px] text-gray-400">
-                                                {
-                                                    member
-                                                        .user
-                                                        ?.email
-                                                }
-                                            </p>
                                         </div>
+
+                                        {canManage && (
+                                            <div className="flex shrink-0 items-center gap-2">
+                                                {!isManager && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            handleChangeRole(
+                                                                member,
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            updating ||
+                                                            removing
+                                                        }
+                                                        className="border border-gray-200 bg-white px-3 py-2 font-mono text-[10px] font-semibold text-gray-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
+                                                    >
+                                                        {updating
+                                                            ? 'updating...'
+                                                            : 'make manager'}
+                                                    </button>
+                                                )}
+
+                                                {isManager ? (
+                                                    <span className="px-3 py-2 font-mono text-[10px] text-gray-400">
+                                                        // project
+                                                        manager
+                                                    </span>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            handleRemoveMember(
+                                                                member,
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            updating ||
+                                                            removing
+                                                        }
+                                                        className="border border-red-100 bg-white px-3 py-2 font-mono text-[10px] font-semibold text-red-500 transition hover:border-red-200 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                                    >
+                                                        {removing
+                                                            ? 'removing...'
+                                                            : 'remove'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
-
-                                    {canManage && (
-                                        <div className="flex shrink-0 items-center gap-2">
-                                            {!isManager && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        handleChangeRole(
-                                                            member,
-                                                        )
-                                                    }
-                                                    disabled={
-                                                        updating ||
-                                                        removing
-                                                    }
-                                                    className="border border-gray-200 bg-white px-3 py-2 font-mono text-[10px] font-semibold text-gray-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
-                                                >
-                                                    {updating
-                                                        ? 'updating...'
-                                                        : 'make manager'}
-                                                </button>
-                                            )}
-
-                                            {isManager ? (
-                                                <span className="px-3 py-2 font-mono text-[10px] text-gray-400">
-                                                    // project manager
-                                                </span>
-                                            ) : (
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        handleRemoveMember(
-                                                            member,
-                                                        )
-                                                    }
-                                                    disabled={
-                                                        updating ||
-                                                        removing
-                                                    }
-                                                    className="border border-red-100 bg-white px-3 py-2 font-mono text-[10px] font-semibold text-red-500 transition hover:border-red-200 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                                                >
-                                                    {removing
-                                                        ? 'removing...'
-                                                        : 'remove'}
-                                                </button>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                                );
+                            },
+                        )}
                     </div>
                 )}
             </div>
 
-            {!loading && members.length > 0 && (
-                <div className="border-t border-rose-100 bg-rose-50/20 px-6 py-3.5 sm:px-7">
-                    <p className="font-mono text-[10px] text-gray-400">
-                        <span className="text-rose-400">
-                            $
-                        </span>{' '}
-                        {members.length}{' '}
-                        {members.length === 1
-                            ? 'member'
-                            : 'members'}{' '}
-                        in this project
-                    </p>
-                </div>
-            )}
+            {!loading &&
+                members.length > 0 && (
+                    <div className="border-t border-rose-100 bg-rose-50/20 px-6 py-3.5 sm:px-7">
+                        <p className="font-mono text-[10px] text-gray-400">
+                            <span className="text-rose-400">
+                                $
+                            </span>{' '}
+                            {members.length}{' '}
+                            {members.length ===
+                            1
+                                ? 'member'
+                                : 'members'}{' '}
+                            in this project
+                        </p>
+                    </div>
+                )}
         </section>
     );
 }

@@ -29,7 +29,10 @@ export default function ProjectsPage() {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
 
-    const [projects, setProjects] = useState<Project[]>([]);
+    const [projects, setProjects] = useState<Project[]>(
+        [],
+    );
+
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -100,7 +103,7 @@ export default function ProjectsPage() {
             }
 
             const response = await fetch(
-                'http://localhost:3000/projects',
+                `${process.env.NEXT_PUBLIC_API_URL}/projects`,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -113,7 +116,7 @@ export default function ProjectsPage() {
             if (!response.ok) {
                 setError(
                     data.message ||
-                    'Failed to load projects.',
+                        'Failed to load projects.',
                 );
 
                 return;
@@ -169,11 +172,12 @@ export default function ProjectsPage() {
             }
 
             const response = await fetch(
-                'http://localhost:3000/projects',
+                `${process.env.NEXT_PUBLIC_API_URL}/projects`,
                 {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
+                        'Content-Type':
+                            'application/json',
                         Authorization: `Bearer ${token}`,
                     },
                     body: JSON.stringify({
@@ -380,20 +384,21 @@ export default function ProjectsPage() {
                                         </div>
 
                                         <span
-                                            className={`border px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wide ${project.status ===
-                                                    'ACTIVE'
+                                            className={`border px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wide ${
+                                                project.status ===
+                                                'ACTIVE'
                                                     ? 'border-emerald-100 bg-emerald-50 text-emerald-600'
                                                     : project.status ===
                                                         'COMPLETED'
-                                                        ? 'border-violet-100 bg-violet-50 text-violet-600'
+                                                      ? 'border-violet-100 bg-violet-50 text-violet-600'
+                                                      : project.status ===
+                                                          'ON_HOLD'
+                                                        ? 'border-amber-100 bg-amber-50 text-amber-600'
                                                         : project.status ===
-                                                            'ON_HOLD'
-                                                            ? 'border-amber-100 bg-amber-50 text-amber-600'
-                                                            : project.status ===
-                                                                'ARCHIVED'
-                                                                ? 'border-slate-200 bg-slate-50 text-slate-500'
-                                                                : 'border-pink-100 bg-pink-50 text-fuchsia-600'
-                                                }`}
+                                                            'ARCHIVED'
+                                                          ? 'border-slate-200 bg-slate-50 text-slate-500'
+                                                          : 'border-pink-100 bg-pink-50 text-fuchsia-600'
+                                            }`}
                                         >
                                             {project.status}
                                         </span>
@@ -422,17 +427,18 @@ export default function ProjectsPage() {
                                         </span>
 
                                         <span
-                                            className={`border px-2 py-1 font-mono text-[10px] font-bold uppercase ${project.priority ===
-                                                    'URGENT'
+                                            className={`border px-2 py-1 font-mono text-[10px] font-bold uppercase ${
+                                                project.priority ===
+                                                'URGENT'
                                                     ? 'border-red-100 bg-red-50 text-red-600'
                                                     : project.priority ===
                                                         'HIGH'
-                                                        ? 'border-orange-100 bg-orange-50 text-orange-600'
-                                                        : project.priority ===
-                                                            'MEDIUM'
-                                                            ? 'border-amber-100 bg-amber-50 text-amber-600'
-                                                            : 'border-slate-200 bg-slate-50 text-slate-500'
-                                                }`}
+                                                      ? 'border-orange-100 bg-orange-50 text-orange-600'
+                                                      : project.priority ===
+                                                          'MEDIUM'
+                                                        ? 'border-amber-100 bg-amber-50 text-amber-600'
+                                                        : 'border-slate-200 bg-slate-50 text-slate-500'
+                                            }`}
                                         >
                                             {project.priority}
                                         </span>

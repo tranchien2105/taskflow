@@ -16,6 +16,7 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RequestIdMiddleware } from './common/request-id/request-id.middleware';
 import { RedisModule } from './redis/redis.module';
 import { ProjectInvitationsModule } from './project-invitations/project-invitations.module';
+import { PresenceModule } from './presence/presence.module';
 
 
 @Module({
@@ -54,6 +55,8 @@ import { ProjectInvitationsModule } from './project-invitations/project-invitati
     RedisModule,
 
     ProjectInvitationsModule,
+
+    PresenceModule,
   ],
 
   controllers: [AppController],

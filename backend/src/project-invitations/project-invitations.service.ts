@@ -4,11 +4,11 @@ import {
     Injectable,
     NotFoundException,
     Inject,
-    forwardRef
-
+    forwardRef,
 } from '@nestjs/common';
 
 import { InjectRepository } from '@nestjs/typeorm';
+
 import { Repository } from 'typeorm';
 
 import {
@@ -18,14 +18,22 @@ import {
 
 import { ProjectMembersService } from '../project-members/project-members.service';
 
+import { ProjectInvitationsGateway } from './project-invitations.gateway';
+
 @Injectable()
 export class ProjectInvitationsService {
     constructor(
         @InjectRepository(ProjectInvitation)
         private readonly invitationRepository: Repository<ProjectInvitation>,
 
-        @Inject(forwardRef(() => ProjectMembersService))
+        @Inject(
+            forwardRef(
+                () => ProjectMembersService,
+            ),
+        )
         private readonly projectMembersService: ProjectMembersService,
+
+        private readonly gateway: ProjectInvitationsGateway,
     ) { }
 
     async createInvitation(
@@ -38,7 +46,8 @@ export class ProjectInvitationsService {
                 where: {
                     projectId,
                     invitedUserId,
-                    status: ProjectInvitationStatus.PENDING,
+                    status:
+                        ProjectInvitationStatus.PENDING,
                 },
             });
 
@@ -53,10 +62,47 @@ export class ProjectInvitationsService {
                 projectId,
                 invitedUserId,
                 invitedByUserId,
-                status: ProjectInvitationStatus.PENDING,
+                status:
+                    ProjectInvitationStatus.PENDING,
             });
 
-        return this.invitationRepository.save(invitation);
+        const savedInvitation =
+            await this.invitationRepository.save(
+                invitation,
+            );
+
+        /**
+         * Load project + inviter information.
+         *
+         * REST API and Socket.IO will return
+         * the same invitation structure.
+         */
+        const invitationWithRelations =
+            await this.invitationRepository.findOne({
+                where: {
+                    id: savedInvitation.id,
+                },
+                relations: {
+                    project: true,
+                    invitedBy: true,
+                },
+            });
+
+        if (!invitationWithRelations) {
+            throw new NotFoundException(
+                'Invitation not found after creation.',
+            );
+        }
+
+        /**
+         * Realtime notification
+         */
+        this.gateway.emitInvitationCreated(
+            invitedUserId,
+            invitationWithRelations,
+        );
+
+        return invitationWithRelations;
     }
 
     async acceptInvitation(
@@ -94,11 +140,18 @@ export class ProjectInvitationsService {
         }
 
         // Tạo project member
-        await this.projectMembersService.create(
+        const member =
+            await this.projectMembersService.create(
+                invitation.projectId,
+                {
+                    userId: invitation.invitedUserId,
+                },
+            );
+
+        // Realtime thông báo project có member mới
+        this.gateway.emitProjectMemberAdded(
             invitation.projectId,
-            {
-                userId: invitation.invitedUserId,
-            },
+            member,
         );
 
         // Đổi trạng thái invitation
@@ -158,7 +211,12 @@ export class ProjectInvitationsService {
         return this.invitationRepository.find({
             where: {
                 invitedUserId: userId,
-                status: ProjectInvitationStatus.PENDING,
+                status:
+                    ProjectInvitationStatus.PENDING,
+            },
+            relations: {
+                project: true,
+                invitedBy: true,
             },
             order: {
                 createdAt: 'DESC',

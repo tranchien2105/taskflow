@@ -1,7 +1,5 @@
+import { HomeRedirect } from '@/components/HomeRedirect';
+
 export default function HomePage() {
-  return (
-    <main>
-      <h1>TaskFlow</h1>
-    </main>
-  );
+    return <HomeRedirect />;
 }

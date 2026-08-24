@@ -2,11 +2,10 @@ import {
     ConflictException,
     Injectable,
     NotFoundException,
-    ForbiddenException
+    ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
-
 import { User } from '../users/entities/user.entity';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { Project } from './entities/project.entity';
@@ -14,20 +13,20 @@ import { QueryProjectDto } from './dto/query-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { ProjectMembersService } from '../project-members/project-members.service';
 import { ProjectMemberRole } from '../project-members/entities/project-member.entity';
-import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class ProjectsService {
     constructor(
         @InjectRepository(Project)
         private readonly projectsRepository: Repository<Project>,
+
         private readonly projectMembersService: ProjectMembersService,
 
         @InjectRepository(User)
         private readonly usersRepository: Repository<User>,
+
         private readonly dataSource: DataSource,
-        private readonly redisService: RedisService,
-    ) { }
+    ) {}
 
     async create(
         createProjectDto: CreateProjectDto,
@@ -60,7 +59,6 @@ export class ProjectsService {
 
         return this.dataSource.transaction(
             async (manager) => {
-
                 const projectRepository =
                     manager.getRepository(Project);
 
@@ -91,7 +89,6 @@ export class ProjectsService {
                     manager,
                 );
 
-                await this.invalidateProjectCache();
                 return savedProject;
             },
         );
@@ -107,20 +104,9 @@ export class ProjectsService {
             search,
             status,
             priority,
-            sortBy = 'created_at',
+            sortBy = 'createdAt',
             sortOrder = 'DESC',
         } = query;
-
-        const cacheKey = this.buildProjectsCacheKey(
-            userId,
-            query,
-        );
-
-        const cached = await this.redisService.get(cacheKey);
-
-        if (cached) {
-            return JSON.parse(cached);
-        }
 
         const queryBuilder = this.projectsRepository
             .createQueryBuilder('project')
@@ -145,15 +131,21 @@ export class ProjectsService {
         }
 
         if (status) {
-            queryBuilder.andWhere('project.status = :status', {
-                status,
-            });
+            queryBuilder.andWhere(
+                'project.status = :status',
+                {
+                    status,
+                },
+            );
         }
 
         if (priority) {
-            queryBuilder.andWhere('project.priority = :priority', {
-                priority,
-            });
+            queryBuilder.andWhere(
+                'project.priority = :priority',
+                {
+                    priority,
+                },
+            );
         }
 
         const allowedSortFields = [
@@ -163,23 +155,26 @@ export class ProjectsService {
             'dueDate',
         ];
 
-        const safeSortBy = allowedSortFields.includes(sortBy)
-            ? sortBy
-            : 'createdAt';
+        const safeSortBy =
+            allowedSortFields.includes(sortBy)
+                ? sortBy
+                : 'createdAt';
 
-        const safeSortOrder = sortOrder === 'ASC' ? 'ASC' : 'DESC';
+        const safeSortOrder =
+            sortOrder === 'ASC' ? 'ASC' : 'DESC';
 
         queryBuilder.orderBy(
             `project.${safeSortBy}`,
             safeSortOrder,
         );
 
-        const [data, total] = await queryBuilder
-            .skip((page - 1) * limit)
-            .take(limit)
-            .getManyAndCount();
+        const [data, total] =
+            await queryBuilder
+                .skip((page - 1) * limit)
+                .take(limit)
+                .getManyAndCount();
 
-        const result = {
+        return {
             data,
             meta: {
                 page,
@@ -188,29 +183,24 @@ export class ProjectsService {
                 totalPages: Math.ceil(total / limit),
             },
         };
-
-        await this.redisService.set(
-            cacheKey,
-            JSON.stringify(result),
-            60,
-        );
-
-        return result;
     }
 
     async findOne(
         id: string,
         userId: string,
     ) {
-        const project = await this.projectsRepository.findOne({
-            where: { id },
-            relations: {
-                owner: true,
-            },
-        });
+        const project =
+            await this.projectsRepository.findOne({
+                where: { id },
+                relations: {
+                    owner: true,
+                },
+            });
 
         if (!project) {
-            throw new NotFoundException('Project not found');
+            throw new NotFoundException(
+                'Project not found',
+            );
         }
 
         const isMember =
@@ -228,82 +218,60 @@ export class ProjectsService {
         return project;
     }
 
-    async update(id: string, updateProjectDto: UpdateProjectDto) {
-        const project = await this.projectsRepository.findOne({
-            where: { id },
-        });
+    async update(
+        id: string,
+        updateProjectDto: UpdateProjectDto,
+    ) {
+        const project =
+            await this.projectsRepository.findOne({
+                where: { id },
+            });
 
         if (!project) {
-            throw new NotFoundException('Project not found');
+            throw new NotFoundException(
+                'Project not found',
+            );
         }
 
         if (
             updateProjectDto.slug &&
             updateProjectDto.slug !== project.slug
         ) {
-            const existingProject = await this.projectsRepository.findOne({
-                where: {
-                    slug: updateProjectDto.slug,
-                },
-            });
+            const existingProject =
+                await this.projectsRepository.findOne({
+                    where: {
+                        slug: updateProjectDto.slug,
+                    },
+                });
 
             if (existingProject) {
-                throw new ConflictException('Project slug already exists');
+                throw new ConflictException(
+                    'Project slug already exists',
+                );
             }
         }
 
         Object.assign(project, updateProjectDto);
-        await this.invalidateProjectCache();
+
         return this.projectsRepository.save(project);
     }
 
     async remove(id: string) {
-        const project = await this.projectsRepository.findOne({
-            where: { id },
-        });
+        const project =
+            await this.projectsRepository.findOne({
+                where: { id },
+            });
 
         if (!project) {
-            throw new NotFoundException('Project not found');
+            throw new NotFoundException(
+                'Project not found',
+            );
         }
 
         await this.projectsRepository.remove(project);
-        await this.invalidateProjectCache();
 
         return {
             message: 'Project deleted successfully',
         };
-    }
-
-    private buildProjectsCacheKey(
-        userId: string,
-        query: QueryProjectDto,
-    ): string {
-        const {
-            page = 1,
-            limit = 10,
-            search = '',
-            status = '',
-            priority = '',
-            sortBy = 'createdAt',
-            sortOrder = 'DESC',
-        } = query;
-
-        return [
-            'projects',
-            userId,
-            page,
-            limit,
-            search,
-            status,
-            priority,
-            sortBy,
-            sortOrder,
-        ].join(':');
-    }
-
-    private async invalidateProjectCache(): Promise<void> {
-        await this.redisService.deleteByPattern(
-            'projects:*',
-        );
     }
 }

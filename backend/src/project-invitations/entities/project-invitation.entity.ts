@@ -2,9 +2,14 @@ import {
     Column,
     CreateDateColumn,
     Entity,
+    JoinColumn,
+    ManyToOne,
     PrimaryGeneratedColumn,
     UpdateDateColumn,
 } from 'typeorm';
+
+import { Project } from '../../projects/entities/project.entity';
+import { User } from '../../users/entities/user.entity';
 
 export enum ProjectInvitationStatus {
     PENDING = 'PENDING',
@@ -17,14 +22,47 @@ export class ProjectInvitation {
     @PrimaryGeneratedColumn('uuid')
     id!: string;
 
-    @Column({ name: 'project_id', type: 'uuid' })
+    @Column({
+        name: 'project_id',
+        type: 'uuid',
+    })
     projectId!: string;
 
-    @Column({ name: 'invited_user_id', type: 'uuid' })
+    @ManyToOne(
+        () => Project,
+    )
+    @JoinColumn({
+        name: 'project_id',
+    })
+    project!: Project;
+
+    @Column({
+        name: 'invited_user_id',
+        type: 'uuid',
+    })
     invitedUserId!: string;
 
-    @Column({ name: 'invited_by_user_id', type: 'uuid' })
+    @ManyToOne(
+        () => User,
+    )
+    @JoinColumn({
+        name: 'invited_user_id',
+    })
+    invitedUser!: User;
+
+    @Column({
+        name: 'invited_by_user_id',
+        type: 'uuid',
+    })
     invitedByUserId!: string;
+
+    @ManyToOne(
+        () => User,
+    )
+    @JoinColumn({
+        name: 'invited_by_user_id',
+    })
+    invitedBy!: User;
 
     @Column({
         type: 'enum',

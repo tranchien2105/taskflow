@@ -8,21 +8,27 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([User]),
+    imports: [
+        TypeOrmModule.forFeature([User]),
 
-    JwtModule.register({
-      secret: process.env.JWT_SECRET,
-      signOptions: {
-        expiresIn: '1h',
-      },
-    }),
-  ],
+        JwtModule.register({
+            secret: process.env.JWT_SECRET,
+            signOptions: {
+                expiresIn: '1h',
+            },
+        }),
+    ],
 
-  controllers: [AuthController],
+    controllers: [AuthController],
 
-  providers: [AuthService, JwtStrategy],
+    providers: [
+        AuthService,
+        JwtStrategy,
+    ],
 
-  exports: [AuthService],
+    exports: [
+        AuthService,
+        JwtModule,
+    ],
 })
-export class AuthModule { }
+export class AuthModule {}

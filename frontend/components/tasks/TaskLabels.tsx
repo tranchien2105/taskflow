@@ -51,7 +51,7 @@ export default function TaskLabels({
             const [taskLabelsResponse, projectLabelsResponse] =
                 await Promise.all([
                     fetch(
-                        `http://localhost:3000/tasks/${taskId}/labels`,
+                        `${process.env.NEXT_PUBLIC_API_URL}/tasks/${taskId}/labels`,
                         {
                             headers: {
                                 Authorization: `Bearer ${token}`,
@@ -60,7 +60,7 @@ export default function TaskLabels({
                     ),
 
                     fetch(
-                        `http://localhost:3000/projects/${projectId}/labels`,
+                        `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/labels`,
                         {
                             headers: {
                                 Authorization: `Bearer ${token}`,
@@ -129,7 +129,7 @@ export default function TaskLabels({
             }
 
             const response = await fetch(
-                `http://localhost:3000/tasks/${taskId}/labels/${labelId}`,
+                `${process.env.NEXT_PUBLIC_API_URL}/tasks/${taskId}/labels/${labelId}`,
                 {
                     method: 'POST',
                     headers: {
@@ -185,7 +185,7 @@ export default function TaskLabels({
             }
 
             const response = await fetch(
-                `http://localhost:3000/tasks/${taskId}/labels/${labelId}`,
+                `${process.env.NEXT_PUBLIC_API_URL}/tasks/${taskId}/labels/${labelId}`,
                 {
                     method: 'DELETE',
                     headers: {

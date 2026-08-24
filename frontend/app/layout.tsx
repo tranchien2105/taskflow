@@ -5,6 +5,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 
 import { AuthProvider } from '@/contexts/AuthContext';
+import { PresenceProvider } from '@/contexts/PresenceContext';
 
 import { Toaster } from 'sonner';
 
@@ -39,7 +40,9 @@ export default function RootLayout({
         >
             <body className="min-h-full bg-[#fff7fa] text-slate-900">
                 <AuthProvider>
-                    {children}
+                    <PresenceProvider>
+                        {children}
+                    </PresenceProvider>
                 </AuthProvider>
 
                 <Toaster

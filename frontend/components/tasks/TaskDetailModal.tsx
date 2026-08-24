@@ -9,7 +9,7 @@ import {
 import { toast } from 'sonner';
 import TaskLabels from './TaskLabels';
 
-const API_URL = 'http://localhost:3000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 type User = {
     id: string;

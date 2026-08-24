@@ -63,7 +63,25 @@ export class ProjectMembersService {
             role,
         });
 
-        return repository.save(member);
+        const savedMember = await repository.save(member);
+
+        const memberWithUser = await repository.findOne({
+            where: {
+                projectId: savedMember.projectId,
+                userId: savedMember.userId,
+            },
+            relations: {
+                user: true,
+            },
+        });
+
+        if (!memberWithUser) {
+            throw new NotFoundException(
+                'Project member not found after creation',
+            );
+        }
+
+        return memberWithUser;
     }
 
     /**

@@ -93,7 +93,7 @@ export default function ProjectDetailPage() {
             }
 
             const response = await fetch(
-                `http://localhost:3000/projects/${projectId}`,
+                `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}`,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -137,7 +137,7 @@ export default function ProjectDetailPage() {
             }
 
             const response = await fetch(
-                `http://localhost:3000/tasks?projectId=${projectId}`,
+                `${process.env.NEXT_PUBLIC_API_URL}/tasks?projectId=${projectId}`,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -187,7 +187,7 @@ export default function ProjectDetailPage() {
             }
 
             const response = await fetch(
-                `http://localhost:3000/projects/${projectId}/members`,
+                `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/members`,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,

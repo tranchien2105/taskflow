@@ -6,14 +6,32 @@ import {
     useState,
 } from 'react';
 
+import { io } from 'socket.io-client';
 import { toast } from 'sonner';
 
 type ProjectInvitation = {
     id: string;
     projectId: string;
+
+    project: {
+        id: string;
+        name: string;
+        slug: string;
+    };
+
     invitedUserId: string;
     invitedByUserId: string;
-    status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+
+    invitedBy: {
+        id: string;
+        name: string;
+    };
+
+    status:
+    | 'PENDING'
+    | 'ACCEPTED'
+    | 'REJECTED';
+
     createdAt: string;
     updatedAt: string;
 };
@@ -23,17 +41,24 @@ export default function ProjectInvitationNotification() {
         ProjectInvitation[]
     >([]);
 
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] =
+        useState(true);
 
-    const [processingId, setProcessingId] = useState<
-        string | null
-    >(null);
+    const [processingId, setProcessingId] =
+        useState<string | null>(null);
 
-    const [isOpen, setIsOpen] = useState(false);
+    const [isOpen, setIsOpen] =
+        useState(false);
 
     const invitationRef =
         useRef<HTMLDivElement>(null);
 
+    /**
+     * Load existing pending invitations.
+     *
+     * REST API is responsible for
+     * initial state.
+     */
     const loadInvitations = async () => {
         try {
             setLoading(true);
@@ -46,7 +71,7 @@ export default function ProjectInvitationNotification() {
             }
 
             const response = await fetch(
-                'http://localhost:3000/project-invitations',
+                `${process.env.NEXT_PUBLIC_API_URL}/project-invitations`,
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,
@@ -54,12 +79,13 @@ export default function ProjectInvitationNotification() {
                 },
             );
 
-            const data = await response.json();
+            const data =
+                await response.json();
 
             if (!response.ok) {
                 toast.error(
                     data.message ||
-                        'Failed to load invitations.',
+                    'Failed to load invitations.',
                 );
 
                 return;
@@ -77,12 +103,115 @@ export default function ProjectInvitationNotification() {
         }
     };
 
+    /**
+     * Initial load + realtime socket.
+     *
+     * REST
+     *   ↓
+     * Load existing invitations
+     *
+     * Socket.IO
+     *   ↓
+     * Receive new invitations in realtime
+     */
     useEffect(() => {
         loadInvitations();
+
+        const token =
+            localStorage.getItem('accessToken');
+
+        if (!token) {
+            return;
+        }
+
+        const socket = io(
+            process.env.NEXT_PUBLIC_API_URL,
+            {
+                auth: {
+                    token,
+                },
+                withCredentials: true,
+            },
+        );
+
+        socket.on('connect', () => {
+            console.log(
+                'Invitation socket connected:',
+                socket.id,
+            );
+        });
+
+        socket.on(
+            'connect_error',
+            (error) => {
+                console.error(
+                    'Invitation socket connection error:',
+                    error,
+                );
+            },
+        );
+
+        /**
+         * Receive new project invitation.
+         */
+        socket.on(
+            'project.invitation.created',
+            (
+                invitation: ProjectInvitation,
+            ) => {
+                console.log(
+                    'New project invitation:',
+                    invitation,
+                );
+
+                setInvitations(
+                    (current) => {
+                        /**
+                         * Prevent duplicate invitation.
+                         */
+                        const alreadyExists =
+                            current.some(
+                                (item) =>
+                                    item.id ===
+                                    invitation.id,
+                            );
+
+                        if (alreadyExists) {
+                            return current;
+                        }
+
+                        return [
+                            invitation,
+                            ...current,
+                        ];
+                    },
+                );
+
+                toast.info(
+                    `You received an invitation to join "${invitation.project.name}".`,
+                );
+            },
+        );
+
+        socket.on(
+            'disconnect',
+            () => {
+                console.log(
+                    'Invitation socket disconnected',
+                );
+            },
+        );
+
+        /**
+         * Cleanup socket when component unmounts.
+         */
+        return () => {
+            socket.disconnect();
+        };
     }, []);
 
     /**
-     * Close popup when clicking outside
+     * Close popup when clicking outside.
      */
     useEffect(() => {
         const handleClickOutside = (
@@ -111,11 +240,16 @@ export default function ProjectInvitationNotification() {
         };
     }, []);
 
+    /**
+     * Accept invitation.
+     */
     const handleAccept = async (
         invitationId: string,
     ) => {
         try {
-            setProcessingId(invitationId);
+            setProcessingId(
+                invitationId,
+            );
 
             const token =
                 localStorage.getItem('accessToken');
@@ -129,7 +263,7 @@ export default function ProjectInvitationNotification() {
             }
 
             const response = await fetch(
-                `http://localhost:3000/project-invitations/${invitationId}/accept`,
+                `${process.env.NEXT_PUBLIC_API_URL}/project-invitations/${invitationId}/accept`,
                 {
                     method: 'PATCH',
                     headers: {
@@ -138,12 +272,13 @@ export default function ProjectInvitationNotification() {
                 },
             );
 
-            const data = await response.json();
+            const data =
+                await response.json();
 
             if (!response.ok) {
                 toast.error(
                     data.message ||
-                        'Failed to accept invitation.',
+                    'Failed to accept invitation.',
                 );
 
                 return;
@@ -153,12 +288,13 @@ export default function ProjectInvitationNotification() {
                 'You joined the project successfully.',
             );
 
-            setInvitations((current) =>
-                current.filter(
-                    (invitation) =>
-                        invitation.id !==
-                        invitationId,
-                ),
+            setInvitations(
+                (current) =>
+                    current.filter(
+                        (invitation) =>
+                            invitation.id !==
+                            invitationId,
+                    ),
             );
         } catch (error) {
             console.error(error);
@@ -171,11 +307,16 @@ export default function ProjectInvitationNotification() {
         }
     };
 
+    /**
+     * Reject invitation.
+     */
     const handleReject = async (
         invitationId: string,
     ) => {
         try {
-            setProcessingId(invitationId);
+            setProcessingId(
+                invitationId,
+            );
 
             const token =
                 localStorage.getItem('accessToken');
@@ -189,7 +330,7 @@ export default function ProjectInvitationNotification() {
             }
 
             const response = await fetch(
-                `http://localhost:3000/project-invitations/${invitationId}/reject`,
+                `${process.env.NEXT_PUBLIC_API_URL}/project-invitations/${invitationId}/reject`,
                 {
                     method: 'PATCH',
                     headers: {
@@ -198,12 +339,13 @@ export default function ProjectInvitationNotification() {
                 },
             );
 
-            const data = await response.json();
+            const data =
+                await response.json();
 
             if (!response.ok) {
                 toast.error(
                     data.message ||
-                        'Failed to reject invitation.',
+                    'Failed to reject invitation.',
                 );
 
                 return;
@@ -213,12 +355,13 @@ export default function ProjectInvitationNotification() {
                 'Invitation rejected.',
             );
 
-            setInvitations((current) =>
-                current.filter(
-                    (invitation) =>
-                        invitation.id !==
-                        invitationId,
-                ),
+            setInvitations(
+                (current) =>
+                    current.filter(
+                        (invitation) =>
+                            invitation.id !==
+                            invitationId,
+                    ),
             );
         } catch (error) {
             console.error(error);
@@ -231,7 +374,14 @@ export default function ProjectInvitationNotification() {
         }
     };
 
-    if (loading || invitations.length === 0) {
+    /**
+     * Hide notification component when
+     * there are no pending invitations.
+     */
+    if (
+        loading ||
+        invitations.length === 0
+    ) {
         return null;
     }
 
@@ -244,7 +394,9 @@ export default function ProjectInvitationNotification() {
             <button
                 type="button"
                 onClick={() =>
-                    setIsOpen((current) => !current)
+                    setIsOpen(
+                        (current) => !current,
+                    )
                 }
                 className="relative rounded-md border border-violet-200 bg-white px-3 py-2 font-mono text-[11px] font-semibold text-slate-600 transition hover:border-fuchsia-200 hover:bg-fuchsia-50 hover:text-fuchsia-600"
             >
@@ -265,8 +417,8 @@ export default function ProjectInvitationNotification() {
                         </p>
 
                         <p className="mt-1 text-[10px] text-slate-400">
-                            You have pending project
-                            invitations.
+                            You have pending
+                            project invitations.
                         </p>
                     </div>
 
@@ -285,18 +437,58 @@ export default function ProjectInvitationNotification() {
                                         }
                                         className="p-4"
                                     >
-                                        <p className="font-mono text-xs font-semibold text-slate-900">
-                                            Project invitation
+                                        {/* Project */}
+                                        <div className="flex items-start gap-3">
+                                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-fuchsia-100 bg-fuchsia-50 font-mono text-sm font-bold text-fuchsia-600">
+                                                {invitation.project.name
+                                                    .charAt(
+                                                        0,
+                                                    )
+                                                    .toUpperCase()}
+                                            </div>
+
+                                            <div className="min-w-0">
+                                                <p className="truncate text-sm font-bold text-slate-900">
+                                                    {
+                                                        invitation
+                                                            .project
+                                                            .name
+                                                    }
+                                                </p>
+
+                                                <p className="mt-0.5 truncate font-mono text-[10px] text-slate-400">
+                                                    /
+                                                    {
+                                                        invitation
+                                                            .project
+                                                            .slug
+                                                    }
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Invitation message */}
+                                        <p className="mt-3 text-xs leading-5 text-slate-500">
+                                            You have been
+                                            invited to
+                                            join this
+                                            project.
                                         </p>
 
-                                        <p className="mt-1 font-mono text-[10px] text-slate-400">
-                                            project:{' '}
-                                            {
-                                                invitation.projectId
-                                            }
+                                        {/* Invited by */}
+                                        <p className="mt-2 font-mono text-[10px] text-slate-400">
+                                            invited by:{' '}
+                                            <span className="font-semibold text-slate-600">
+                                                {
+                                                    invitation
+                                                        .invitedBy
+                                                        .name
+                                                }
+                                            </span>
                                         </p>
 
-                                        <div className="mt-3 flex gap-2">
+                                        {/* Actions */}
+                                        <div className="mt-4 flex gap-2">
                                             {/* Accept */}
                                             <button
                                                 type="button"
@@ -308,9 +500,11 @@ export default function ProjectInvitationNotification() {
                                                         invitation.id,
                                                     )
                                                 }
-                                                className="flex-1 border border-emerald-500 bg-emerald-500 px-3 py-2 font-mono text-[10px] font-bold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+                                                className="flex-1 border border-emerald-500 bg-emerald-500 px-3 py-2 font-mono text-[10px] font-bold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
                                             >
-                                                accept
+                                                {processing
+                                                    ? 'processing...'
+                                                    : 'accept'}
                                             </button>
 
                                             {/* Reject */}
@@ -324,7 +518,7 @@ export default function ProjectInvitationNotification() {
                                                         invitation.id,
                                                     )
                                                 }
-                                                className="flex-1 border border-gray-200 bg-white px-3 py-2 font-mono text-[10px] font-bold text-gray-500 hover:border-red-200 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+                                                className="flex-1 border border-gray-200 bg-white px-3 py-2 font-mono text-[10px] font-bold text-gray-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50"
                                             >
                                                 reject
                                             </button>

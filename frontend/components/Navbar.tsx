@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 
 import { useAuth } from '@/contexts/AuthContext';
 import ProjectInvitationNotification from '@/components/ProjectInvitationNotification';
+import SocketTest from '@/components/SocketTest';
 
 export default function Navbar() {
     const { user, logout } = useAuth();
@@ -77,6 +78,7 @@ export default function Navbar() {
 
                 {/* User */}
                 <div className="flex items-center gap-2.5 sm:gap-3">
+                    <SocketTest />
                     <ProjectInvitationNotification />
                     {/* User info */}
                     <div className="hidden text-right sm:block">

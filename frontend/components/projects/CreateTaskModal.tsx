@@ -103,7 +103,7 @@ export default function CreateTaskModal({
                 }
 
                 const response = await fetch(
-                    `http://localhost:3000/projects/${projectId}/members`,
+                    `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/members`,
                     {
                         headers: {
                             Authorization: `Bearer ${token}`,
@@ -168,7 +168,7 @@ export default function CreateTaskModal({
                 }
 
                 const response = await fetch(
-                    `http://localhost:3000/projects/${projectId}/labels`,
+                    `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/labels`,
                     {
                         headers: {
                             Authorization: `Bearer ${token}`,
@@ -248,7 +248,7 @@ export default function CreateTaskModal({
              * 1. Create task
              */
             const response = await fetch(
-                'http://localhost:3000/tasks',
+                '${process.env.NEXT_PUBLIC_API_URL}/tasks',
                 {
                     method: 'POST',
                     headers: {
@@ -303,7 +303,7 @@ export default function CreateTaskModal({
                             async (labelId) => {
                                 const labelResponse =
                                     await fetch(
-                                        `http://localhost:3000/tasks/${createdTask.id}/labels/${labelId}`,
+                                        `${process.env.NEXT_PUBLIC_API_URL}/tasks/${createdTask.id}/labels/${labelId}`,
                                         {
                                             method: 'POST',
                                             headers: {
