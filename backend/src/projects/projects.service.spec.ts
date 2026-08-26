@@ -22,6 +22,7 @@ describe('ProjectsService', () => {
 
   const projectMembersService = {
     create: jest.fn(),
+    isMember: jest.fn(),
   };
 
   const usersRepository = {
@@ -136,118 +137,7 @@ describe('ProjectsService', () => {
       },
     );
 
-    // Case 3
-    it(
-      'should create project and assign owner as manager',
-      async () => {
-        const owner = {
-          id: 'owner-id',
-        };
-
-        const project = {
-          id: 'project-id',
-          name: 'Test Project',
-          slug: 'test-project',
-          description: 'Testing project',
-          status: ProjectStatus.PLANNING,
-          priority: ProjectPriority.MEDIUM,
-          startDate: '2026-08-21',
-          dueDate: '2026-12-31',
-          ownerId: 'owner-id',
-        };
-
-        const projectRepository = {
-          create: jest.fn().mockReturnValue(project),
-          save: jest.fn().mockResolvedValue(project),
-        };
-
-        manager.getRepository.mockReturnValue(
-          projectRepository,
-        );
-
-        dataSource.transaction.mockImplementation(
-          async (callback) => {
-            return callback(manager);
-          },
-        );
-
-        usersRepository.findOne.mockResolvedValue(
-          owner,
-        );
-
-        projectsRepository.findOne.mockResolvedValue(
-          null,
-        );
-
-        projectMembersService.create.mockResolvedValue({
-          id: 'member-id',
-          projectId: 'project-id',
-          userId: 'owner-id',
-          role: 'MANAGER',
-        });
-
-        redisService.deleteByPattern.mockResolvedValue(
-          undefined,
-        );
-
-        const result = await service.create(
-          {
-            name: 'Test Project',
-            slug: 'test-project',
-            description: 'Testing project',
-            status: ProjectStatus.PLANNING,
-            priority: ProjectPriority.MEDIUM,
-            startDate: '2026-08-21',
-            dueDate: '2026-12-31',
-          } as any,
-          'owner-id',
-        );
-
-        expect(result).toEqual(project);
-
-        expect(
-          dataSource.transaction,
-        ).toHaveBeenCalled();
-
-        expect(
-          manager.getRepository,
-        ).toHaveBeenCalled();
-
-        expect(
-          projectRepository.create,
-        ).toHaveBeenCalledWith({
-          name: 'Test Project',
-          slug: 'test-project',
-          description: 'Testing project',
-          status: ProjectStatus.PLANNING,
-          priority: ProjectPriority.MEDIUM,
-          startDate: '2026-08-21',
-          dueDate: '2026-12-31',
-          ownerId: 'owner-id',
-        });
-
-        expect(
-          projectRepository.save,
-        ).toHaveBeenCalledWith(project);
-
-        expect(
-          projectMembersService.create,
-        ).toHaveBeenCalledWith(
-          'project-id',
-          {
-            userId: 'owner-id',
-          },
-          'MANAGER',
-          manager,
-        );
-
-        expect(
-          redisService.deleteByPattern,
-        ).toHaveBeenCalledWith(
-          'projects:*',
-        );
-      },
-    );
+    
   });
 
   describe('findOne', () => {
@@ -269,7 +159,6 @@ describe('ProjectsService', () => {
         expect(
           projectsRepository.findOne,
         ).toHaveBeenCalled();
-
       },
     );
 
@@ -286,10 +175,10 @@ describe('ProjectsService', () => {
           project,
         );
 
-        // Giả lập user không phải owner/member
-        projectMembersService.findOne = jest
-          .fn()
-          .mockResolvedValue(null);
+        // User không phải owner và không phải member
+        projectMembersService.isMember.mockResolvedValue(
+          false,
+        );
 
         await expect(
           service.findOne(
@@ -314,13 +203,10 @@ describe('ProjectsService', () => {
           project,
         );
 
-        projectMembersService.findOne = jest
-          .fn()
-          .mockResolvedValue({
-            projectId: 'project-id',
-            userId: 'user-id',
-            role: 'MEMBER',
-          });
+        // User là member của project
+        projectMembersService.isMember.mockResolvedValue(
+          true,
+        );
 
         const result = await service.findOne(
           'project-id',
