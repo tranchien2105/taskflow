@@ -9,12 +9,26 @@ import {
 } from '@nestjs/websockets';
 
 import { Server, Socket } from 'socket.io';
-
 import { JwtService } from '@nestjs/jwt';
 
 import { ProjectInvitation } from './entities/project-invitation.entity';
-
 import { ProjectMember } from '../project-members/entities/project-member.entity';
+import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
+
+interface SocketData {
+  userId?: string;
+}
+
+interface ProjectJoinData {
+  projectId: string;
+}
+
+type AuthenticatedSocket = Socket<
+  Record<string, never>,
+  Record<string, never>,
+  Record<string, never>,
+  SocketData
+>;
 
 @WebSocketGateway({
   cors: {
@@ -25,30 +39,36 @@ import { ProjectMember } from '../project-members/entities/project-member.entity
 export class ProjectInvitationsGateway
   implements OnGatewayConnection, OnGatewayDisconnect
 {
-  constructor(private readonly jwtService: JwtService) {}
-
   @WebSocketServer()
   server!: Server;
+
+  constructor(private readonly jwtService: JwtService) {}
 
   /**
    * Authenticate socket connection
    * and join personal user room.
    */
-  handleConnection(socket: Socket) {
+  handleConnection(socket: AuthenticatedSocket): void {
     try {
-      const token = socket.handshake.auth.token;
+      const token: unknown = socket.handshake.auth?.token;
 
-      if (!token) {
+      if (typeof token !== 'string' || !token) {
         console.log('Socket rejected: no token');
-
         socket.disconnect();
-
         return;
       }
 
-      const payload = this.jwtService.verify(token);
+      const payload = this.jwtService.verify<JwtPayload>(token);
 
       const userId = payload.sub;
+
+      if (!userId) {
+        console.log('Socket rejected: invalid user id');
+        socket.disconnect();
+        return;
+      }
+
+      socket.data.userId = userId;
 
       console.log('Socket authenticated:', userId);
 
@@ -59,12 +79,11 @@ export class ProjectInvitationsGateway
        * - invitation.created
        * - personal notifications
        */
-      socket.join(`user:${userId}`);
+      void socket.join(`user:${userId}`);
 
       console.log(`Socket joined room: user:${userId}`);
-    } catch (error) {
-      console.error('Socket authentication failed');
-
+    } catch (error: unknown) {
+      console.error('Socket authentication failed:', error);
       socket.disconnect();
     }
   }
@@ -72,7 +91,7 @@ export class ProjectInvitationsGateway
   /**
    * Socket disconnected.
    */
-  handleDisconnect(socket: Socket) {
+  handleDisconnect(socket: AuthenticatedSocket): void {
     console.log(`WebSocket disconnected: ${socket.id}`);
   }
 
@@ -82,7 +101,7 @@ export class ProjectInvitationsGateway
    * Frontend sends:
    *
    * socket.emit('project.join', {
-   *     projectId,
+   *   projectId,
    * });
    *
    * Socket will then join:
@@ -91,15 +110,10 @@ export class ProjectInvitationsGateway
    */
   @SubscribeMessage('project.join')
   handleProjectJoin(
-    @ConnectedSocket()
-    socket: Socket,
-
-    @MessageBody()
-    data: {
-      projectId: string;
-    },
-  ) {
-    socket.join(`project:${data.projectId}`);
+    @ConnectedSocket() socket: AuthenticatedSocket,
+    @MessageBody() data: ProjectJoinData,
+  ): void {
+    void socket.join(`project:${data.projectId}`);
 
     console.log(
       `Socket ${socket.id} joined project room: project:${data.projectId}`,
@@ -110,8 +124,8 @@ export class ProjectInvitationsGateway
    * Emit new invitation notification
    * to a specific user.
    */
-  emitInvitationCreated(userId: string, invitation: ProjectInvitation) {
-    this.server
+  emitInvitationCreated(userId: string, invitation: ProjectInvitation): void {
+    void this.server
       .to(`user:${userId}`)
       .emit('project.invitation.created', invitation);
   }
@@ -121,7 +135,9 @@ export class ProjectInvitationsGateway
    * to everyone currently inside
    * the project room.
    */
-  emitProjectMemberAdded(projectId: string, member: ProjectMember) {
-    this.server.to(`project:${projectId}`).emit('project.member.added', member);
+  emitProjectMemberAdded(projectId: string, member: ProjectMember): void {
+    void this.server
+      .to(`project:${projectId}`)
+      .emit('project.member.added', member);
   }
 }

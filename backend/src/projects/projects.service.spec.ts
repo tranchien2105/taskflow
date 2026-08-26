@@ -26,10 +26,6 @@ describe('ProjectsService', () => {
     findOne: jest.fn(),
   };
 
-  const manager = {
-    getRepository: jest.fn(),
-  };
-
   const dataSource = {
     transaction: jest.fn(),
   };

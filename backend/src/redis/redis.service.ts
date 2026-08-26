@@ -31,9 +31,8 @@ export class RedisService implements OnModuleDestroy {
   async get(key: string): Promise<string | null> {
     try {
       return await this.redis.get(key);
-    } catch (error) {
+    } catch {
       this.logger.warn(`[Redis] GET failed for key: ${key}`);
-
       return null;
     }
   }
@@ -42,12 +41,11 @@ export class RedisService implements OnModuleDestroy {
     try {
       if (ttl) {
         await this.redis.set(key, value, 'EX', ttl);
-
         return;
       }
 
       await this.redis.set(key, value);
-    } catch (error) {
+    } catch {
       this.logger.warn(`[Redis] SET failed for key: ${key}`);
     }
   }
@@ -55,7 +53,7 @@ export class RedisService implements OnModuleDestroy {
   async del(key: string): Promise<void> {
     try {
       await this.redis.del(key);
-    } catch (error) {
+    } catch {
       this.logger.warn(`[Redis] DELETE failed for key: ${key}`);
     }
   }
@@ -79,7 +77,7 @@ export class RedisService implements OnModuleDestroy {
           await this.redis.del(...keys);
         }
       } while (cursor !== '0');
-    } catch (error) {
+    } catch {
       this.logger.warn(`[Redis] DELETE failed for pattern: ${pattern}`);
     }
   }

@@ -11,12 +11,11 @@ import {
 } from '@nestjs/common';
 
 import { ProjectMembersService } from './project-members.service';
-
 import { ProjectAccessGuard } from '../project-access/project-access.guard';
 import { ProjectManagerGuard } from '../project-manager/project-manager.guard';
-
 import { CreateProjectMemberDto } from './dto/create-project-member.dto';
 import { UpdateProjectMemberDto } from './dto/update-project-member.dto';
+import type { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 
 @Controller('projects/:projectId/members')
 export class ProjectMembersController {
@@ -27,7 +26,7 @@ export class ProjectMembersController {
   create(
     @Param('projectId') projectId: string,
     @Body() createDto: CreateProjectMemberDto,
-    @Req() request: any,
+    @Req() request: AuthenticatedRequest,
   ) {
     return this.projectMembersService.createInvitation(
       projectId,

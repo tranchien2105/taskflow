@@ -18,17 +18,22 @@ import { UpdateTaskDto } from './dto/update-task.dto';
 import { TaskQueryDto } from './dto/task-query.dto';
 import { TaskAccessGuard } from '../task-access/task-access.guard';
 
+import type { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
+
 @Controller('tasks')
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
   @Post()
-  create(@Body() createTaskDto: CreateTaskDto, @Req() req: any) {
+  create(
+    @Body() createTaskDto: CreateTaskDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
     return this.tasksService.create(createTaskDto, req.user.userId);
   }
 
   @Get()
-  findAll(@Query() query: TaskQueryDto, @Req() req: any) {
+  findAll(@Query() query: TaskQueryDto, @Req() req: AuthenticatedRequest) {
     return this.tasksService.findAll(query, req.user.userId);
   }
 
@@ -36,8 +41,7 @@ export class TasksController {
   findOne(
     @Param('id', new ParseUUIDPipe())
     id: string,
-
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
     return this.tasksService.findOne(id, req.user.userId);
   }
@@ -47,10 +51,8 @@ export class TasksController {
   update(
     @Param('id', new ParseUUIDPipe())
     id: string,
-
     @Body() updateTaskDto: UpdateTaskDto,
-
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
     return this.tasksService.update(id, updateTaskDto, req.user.userId);
   }
@@ -60,8 +62,7 @@ export class TasksController {
   remove(
     @Param('id', new ParseUUIDPipe())
     id: string,
-
-    @Req() req: any,
+    @Req() req: AuthenticatedRequest,
   ) {
     return this.tasksService.remove(id, req.user.userId);
   }

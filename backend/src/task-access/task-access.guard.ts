@@ -9,6 +9,7 @@ import {
 import { TasksService } from '../tasks/tasks.service';
 import { ProjectMembersService } from '../project-members/project-members.service';
 import { ProjectMemberRole } from '../project-members/entities/project-member.entity';
+import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 
 @Injectable()
 export class TaskAccessGuard implements CanActivate {
@@ -18,10 +19,14 @@ export class TaskAccessGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     const userId = request.user.userId;
     const taskId = request.params.id;
+
+    if (typeof taskId !== 'string') {
+      throw new ForbiddenException('Task context not found');
+    }
 
     const task = await this.tasksService.findOneWithoutAuth(taskId);
 

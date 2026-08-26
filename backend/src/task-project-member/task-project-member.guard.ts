@@ -5,24 +5,31 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { Task } from '../tasks/entities/task.entity';
 import { ProjectMembersService } from '../project-members/project-members.service';
 
+interface AuthenticatedRequest {
+  user: {
+    userId: string;
+  };
+  params: {
+    taskId: string;
+  };
+}
+
 @Injectable()
 export class TaskProjectMemberGuard implements CanActivate {
   constructor(
     @InjectRepository(Task)
     private readonly taskRepository: Repository<Task>,
-
     private readonly projectMembersService: ProjectMembersService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     const userId = request.user.userId;
     const taskId = request.params.taskId;

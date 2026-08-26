@@ -1,24 +1,24 @@
-import { ConflictException, Injectable } from '@nestjs/common';
-
+import {
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { JwtService } from '@nestjs/jwt';
 import { Repository } from 'typeorm';
-
 import * as bcrypt from 'bcrypt';
 
 import { User } from '../users/entities/user.entity';
 import { RegisterDto } from './dto/register.dto';
-import { UnauthorizedException } from '@nestjs/common';
 import { LoginDto } from './dto/login.dto';
-import { JwtService } from '@nestjs/jwt';
 
 @Injectable()
 export class AuthService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
-
     private readonly jwtService: JwtService,
-  ) {}
+  ) { }
 
   async register(registerDto: RegisterDto) {
     const existingUser = await this.userRepository.findOne({
@@ -47,6 +47,7 @@ export class AuthService {
       name: savedUser.name,
     };
   }
+
   async login(loginDto: LoginDto) {
     const user = await this.userRepository
       .createQueryBuilder('user')

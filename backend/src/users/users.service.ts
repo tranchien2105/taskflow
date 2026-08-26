@@ -1,13 +1,9 @@
 import { ConflictException, Injectable } from '@nestjs/common';
-
 import { InjectRepository } from '@nestjs/typeorm';
-
 import * as bcrypt from 'bcrypt';
-
 import { ILike, Repository } from 'typeorm';
 
 import { CreateUserDto } from './dto/create-user.dto';
-
 import { User } from './entities/user.entity';
 
 @Injectable()
@@ -38,9 +34,15 @@ export class UsersService {
 
     const savedUser = await this.usersRepository.save(user);
 
-    const { password, ...result } = savedUser;
-
-    return result;
+    return {
+      id: savedUser.id,
+      email: savedUser.email,
+      name: savedUser.name,
+      avatar: savedUser.avatar,
+      role: savedUser.role,
+      createdAt: savedUser.createdAt,
+      updatedAt: savedUser.updatedAt,
+    };
   }
 
   async findAll(search?: string) {

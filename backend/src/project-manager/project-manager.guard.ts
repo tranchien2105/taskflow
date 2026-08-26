@@ -6,19 +6,19 @@ import {
 } from '@nestjs/common';
 
 import { ProjectMembersService } from '../project-members/project-members.service';
+import { AuthenticatedRequest } from '../common/interfaces/authenticated-request.interface';
 
 @Injectable()
 export class ProjectManagerGuard implements CanActivate {
   constructor(private readonly projectMembersService: ProjectMembersService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     const userId = request.user.userId;
-
     const projectId = request.params.projectId ?? request.params.id;
 
-    if (!projectId) {
+    if (typeof projectId !== 'string') {
       throw new ForbiddenException('Project context not found');
     }
 

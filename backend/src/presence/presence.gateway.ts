@@ -4,11 +4,32 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
-
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 
 import { PresenceService } from './presence.service';
+import { JwtPayload } from '../common/interfaces/jwt-payload.interface';
+
+interface SocketData {
+  userId?: string;
+}
+
+interface ServerToClientEvents {
+  'user.online.users': (data: { userIds: string[] }) => void;
+
+  'user.online': (data: { userId: string }) => void;
+
+  'user.offline': (data: { userId: string }) => void;
+}
+
+type AuthenticatedSocket = Socket<
+  Record<string, never>,
+  ServerToClientEvents,
+  Record<string, never>,
+  SocketData
+>;
+
+type PresenceServer = Server<Record<string, never>, ServerToClientEvents>;
 
 @WebSocketGateway({
   cors: {
@@ -20,23 +41,23 @@ export class PresenceGateway
   implements OnGatewayConnection, OnGatewayDisconnect
 {
   @WebSocketServer()
-  server!: Server;
+  server!: PresenceServer;
 
   constructor(
     private readonly jwtService: JwtService,
     private readonly presenceService: PresenceService,
   ) {}
 
-  async handleConnection(socket: Socket) {
+  async handleConnection(socket: AuthenticatedSocket): Promise<void> {
     try {
-      const token = socket.handshake.auth?.token;
+      const token: unknown = socket.handshake.auth?.token;
 
-      if (!token) {
+      if (typeof token !== 'string' || token.length === 0) {
         socket.disconnect();
         return;
       }
 
-      const payload = await this.jwtService.verifyAsync(token);
+      const payload = await this.jwtService.verifyAsync<JwtPayload>(token);
 
       const userId = payload.sub;
 
@@ -45,54 +66,37 @@ export class PresenceGateway
         return;
       }
 
-      /**
-       * Save userId into socket.
-       */
       socket.data.userId = userId;
 
-      /**
-       * Add socket connection.
-       */
       const wasOffline = this.presenceService.addConnection(userId, socket.id);
 
       console.log(`User ${userId} connected`, socket.id);
 
-      /**
-       * Send current online users
-       * to this newly connected client.
-       */
       const onlineUserIds = this.presenceService.getOnlineUserIds();
 
       socket.emit('user.online.users', {
         userIds: onlineUserIds,
       });
 
-      /**
-       * Only broadcast when the user
-       * changes from offline -> online.
-       */
       if (wasOffline) {
         this.server.emit('user.online', {
           userId,
         });
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Presence authentication failed:', error);
 
       socket.disconnect();
     }
   }
 
-  handleDisconnect(socket: Socket) {
-    const userId = socket.data.userId;
+  handleDisconnect(socket: AuthenticatedSocket): void {
+    const userId: string | undefined = socket.data.userId;
 
     if (!userId) {
       return;
     }
 
-    /**
-     * Remove this socket.
-     */
     const wentOffline = this.presenceService.removeConnection(
       userId,
       socket.id,
@@ -100,10 +104,6 @@ export class PresenceGateway
 
     console.log(`User ${userId} disconnected`, socket.id);
 
-    /**
-     * Only broadcast when the user
-     * completely goes offline.
-     */
     if (wentOffline) {
       this.server.emit('user.offline', {
         userId,

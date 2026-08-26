@@ -7,12 +7,21 @@ import {
 
 import { ProjectMembersService } from '../project-members/project-members.service';
 
+interface AuthenticatedRequest {
+  user: {
+    userId: string;
+  };
+  params: {
+    projectId: string;
+  };
+}
+
 @Injectable()
 export class ProjectAccessGuard implements CanActivate {
   constructor(private readonly projectMembersService: ProjectMembersService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     const userId = request.user.userId;
     const projectId = request.params.projectId;

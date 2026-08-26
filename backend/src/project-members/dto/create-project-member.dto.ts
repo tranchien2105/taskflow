@@ -1,6 +1,4 @@
-import { IsEnum, IsUUID } from 'class-validator';
-
-import { ProjectMemberRole } from '../entities/project-member.entity';
+import { IsUUID } from 'class-validator';
 
 export class CreateProjectMemberDto {
   @IsUUID()

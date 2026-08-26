@@ -1,10 +1,18 @@
-import { Body, Controller, Post, UseGuards, Get, Req } from '@nestjs/common';
+import { Controller, Post, Get, Req } from '@nestjs/common';
+import { Request } from 'express';
 
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
+
+interface AuthenticatedRequest extends Request {
+  user: {
+    userId: string;
+    email: string;
+    role: string;
+  };
+}
 
 @Controller('auth')
 export class AuthController {
@@ -12,18 +20,18 @@ export class AuthController {
 
   @Post('register')
   @Public()
-  register(@Body() registerDto: RegisterDto) {
+  register(registerDto: RegisterDto) {
     return this.authService.register(registerDto);
   }
 
   @Post('login')
   @Public()
-  login(@Body() loginDto: LoginDto) {
+  login(loginDto: LoginDto) {
     return this.authService.login(loginDto);
   }
 
   @Get('me')
-  getMe(@Req() req: any) {
+  getMe(@Req() req: AuthenticatedRequest) {
     return req.user;
   }
 }

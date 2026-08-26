@@ -13,6 +13,7 @@ import { QueryProjectDto } from './dto/query-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { ProjectMembersService } from '../project-members/project-members.service';
 import { ProjectMemberRole } from '../project-members/entities/project-member.entity';
+import { SortOrder } from './dto/query-project.dto';
 
 @Injectable()
 export class ProjectsService {
@@ -126,7 +127,8 @@ export class ProjectsService {
       ? sortBy
       : 'createdAt';
 
-    const safeSortOrder = sortOrder === 'ASC' ? 'ASC' : 'DESC';
+    const safeSortOrder =
+      sortOrder === SortOrder.ASC ? SortOrder.ASC : SortOrder.DESC;
 
     queryBuilder.orderBy(`project.${safeSortBy}`, safeSortOrder);
 
