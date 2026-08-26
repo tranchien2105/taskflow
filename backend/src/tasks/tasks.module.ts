@@ -7,22 +7,12 @@ import { ProjectMembersModule } from '../project-members/project-members.module'
 import { TaskAccessGuard } from '../task-access/task-access.guard';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Task]),
-    ProjectMembersModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Task]), ProjectMembersModule],
 
-  controllers: [
-    TasksController,
-  ],
+  controllers: [TasksController],
 
-  providers: [
-    TasksService,
-    TaskAccessGuard,
-  ],
+  providers: [TasksService, TaskAccessGuard],
 
-  exports: [
-    TasksService,
-  ],
+  exports: [TasksService],
 })
 export class TasksModule {}

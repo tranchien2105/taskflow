@@ -16,17 +16,11 @@ import { TaskProjectMemberGuard } from '../task-project-member/task-project-memb
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      TaskLabel,
-      Task,
-      Label,
-    ]),
+    TypeOrmModule.forFeature([TaskLabel, Task, Label]),
     ProjectMembersModule,
   ],
 
-  controllers: [
-    TaskLabelsController,
-  ],
+  controllers: [TaskLabelsController],
 
   providers: [
     TaskLabelsService,
@@ -34,8 +28,6 @@ import { TaskProjectMemberGuard } from '../task-project-member/task-project-memb
     TaskProjectMemberGuard,
   ],
 
-  exports: [
-    TaskLabelsService,
-  ],
+  exports: [TaskLabelsService],
 })
-export class TaskLabelsModule { }
+export class TaskLabelsModule {}

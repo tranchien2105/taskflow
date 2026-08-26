@@ -16,28 +16,17 @@ import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      ProjectInvitation,
-    ]),
+    TypeOrmModule.forFeature([ProjectInvitation]),
 
-    forwardRef(
-      () => ProjectMembersModule,
-    ),
+    forwardRef(() => ProjectMembersModule),
 
     AuthModule,
   ],
 
-  controllers: [
-    ProjectInvitationsController,
-  ],
+  controllers: [ProjectInvitationsController],
 
-  providers: [
-    ProjectInvitationsService,
-    ProjectInvitationsGateway,
-  ],
+  providers: [ProjectInvitationsService, ProjectInvitationsGateway],
 
-  exports: [
-    ProjectInvitationsService,
-  ],
+  exports: [ProjectInvitationsService],
 })
-export class ProjectInvitationsModule { }
+export class ProjectInvitationsModule {}

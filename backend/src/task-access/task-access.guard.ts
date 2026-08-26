@@ -15,42 +15,33 @@ export class TaskAccessGuard implements CanActivate {
   constructor(
     private readonly tasksService: TasksService,
     private readonly projectMembersService: ProjectMembersService,
-  ) { }
+  ) {}
 
-  async canActivate(
-    context: ExecutionContext,
-  ): Promise<boolean> {
-    const request =
-      context.switchToHttp().getRequest();
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const request = context.switchToHttp().getRequest();
 
     const userId = request.user.userId;
     const taskId = request.params.id;
 
-    const task =
-      await this.tasksService.findOneWithoutAuth(taskId);
+    const task = await this.tasksService.findOneWithoutAuth(taskId);
 
     if (!task) {
       throw new NotFoundException('Task not found');
     }
 
-    const role =
-      await this.projectMembersService.getRole(
-        task.projectId,
-        userId,
-      );
+    const role = await this.projectMembersService.getRole(
+      task.projectId,
+      userId,
+    );
 
     if (!role) {
-      throw new ForbiddenException(
-        'You do not have access to this task',
-      );
+      throw new ForbiddenException('You do not have access to this task');
     }
 
     // DELETE chỉ Manager
     if (request.method === 'DELETE') {
       if (role !== ProjectMemberRole.MANAGER) {
-        throw new ForbiddenException(
-          'Only project managers can delete tasks',
-        );
+        throw new ForbiddenException('Only project managers can delete tasks');
       }
 
       return true;

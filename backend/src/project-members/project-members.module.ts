@@ -21,18 +21,10 @@ import { ProjectInvitationsModule } from '../project-invitations/project-invitat
     forwardRef(() => ProjectInvitationsModule),
   ],
 
-  controllers: [
-    ProjectMembersController,
-  ],
+  controllers: [ProjectMembersController],
 
-  providers: [
-    ProjectMembersService,
-    ProjectAccessGuard,
-    ProjectManagerGuard,
-  ],
+  providers: [ProjectMembersService, ProjectAccessGuard, ProjectManagerGuard],
 
-  exports: [
-    ProjectMembersService,
-  ],
+  exports: [ProjectMembersService],
 })
-export class ProjectMembersModule { }
+export class ProjectMembersModule {}

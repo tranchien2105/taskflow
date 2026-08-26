@@ -14,9 +14,7 @@ async function bootstrap() {
 
   app.enableShutdownHooks();
 
-  app.useGlobalFilters(
-    new HttpExceptionFilter(),
-  );
+  app.useGlobalFilters(new HttpExceptionFilter());
 
   app.useGlobalPipes(
     new ValidationPipe({

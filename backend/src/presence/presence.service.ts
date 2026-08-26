@@ -2,65 +2,49 @@ import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class PresenceService {
-    private readonly userSockets =
-        new Map<string, Set<string>>();
+  private readonly userSockets = new Map<string, Set<string>>();
 
-    addConnection(
-        userId: string,
-        socketId: string,
-    ): boolean {
-        let sockets =
-            this.userSockets.get(userId);
+  addConnection(userId: string, socketId: string): boolean {
+    let sockets = this.userSockets.get(userId);
 
-        const wasOffline =
-            !sockets || sockets.size === 0;
+    const wasOffline = !sockets || sockets.size === 0;
 
-        if (!sockets) {
-            sockets = new Set<string>();
+    if (!sockets) {
+      sockets = new Set<string>();
 
-            this.userSockets.set(
-                userId,
-                sockets,
-            );
-        }
-
-        sockets.add(socketId);
-
-        return wasOffline;
+      this.userSockets.set(userId, sockets);
     }
 
-    removeConnection(
-        userId: string,
-        socketId: string,
-    ): boolean {
-        const sockets =
-            this.userSockets.get(userId);
+    sockets.add(socketId);
 
-        if (!sockets) {
-            return false;
-        }
+    return wasOffline;
+  }
 
-        sockets.delete(socketId);
+  removeConnection(userId: string, socketId: string): boolean {
+    const sockets = this.userSockets.get(userId);
 
-        if (sockets.size === 0) {
-            this.userSockets.delete(userId);
-
-            return true;
-        }
-
-        return false;
+    if (!sockets) {
+      return false;
     }
 
-    isOnline(userId: string): boolean {
-        const sockets =
-            this.userSockets.get(userId);
+    sockets.delete(socketId);
 
-        return !!sockets && sockets.size > 0;
+    if (sockets.size === 0) {
+      this.userSockets.delete(userId);
+
+      return true;
     }
 
-    getOnlineUserIds(): string[] {
-        return Array.from(
-            this.userSockets.keys(),
-        );
-    }
+    return false;
+  }
+
+  isOnline(userId: string): boolean {
+    const sockets = this.userSockets.get(userId);
+
+    return !!sockets && sockets.size > 0;
+  }
+
+  getOnlineUserIds(): string[] {
+    return Array.from(this.userSockets.keys());
+  }
 }

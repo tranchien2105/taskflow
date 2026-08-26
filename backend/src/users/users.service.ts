@@ -1,16 +1,10 @@
-import {
-  ConflictException,
-  Injectable,
-} from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 
 import { InjectRepository } from '@nestjs/typeorm';
 
 import * as bcrypt from 'bcrypt';
 
-import {
-  ILike,
-  Repository,
-} from 'typeorm';
+import { ILike, Repository } from 'typeorm';
 
 import { CreateUserDto } from './dto/create-user.dto';
 
@@ -20,44 +14,31 @@ import { User } from './entities/user.entity';
 export class UsersService {
   constructor(
     @InjectRepository(User)
-    private readonly usersRepository:
-      Repository<User>,
-  ) { }
+    private readonly usersRepository: Repository<User>,
+  ) {}
 
-  async create(
-    createUserDto: CreateUserDto,
-  ) {
-    const existingUser =
-      await this.usersRepository.findOne({
-        where: {
-          email: createUserDto.email,
-        },
-      });
+  async create(createUserDto: CreateUserDto) {
+    const existingUser = await this.usersRepository.findOne({
+      where: {
+        email: createUserDto.email,
+      },
+    });
 
     if (existingUser) {
-      throw new ConflictException(
-        'Email already exists',
-      );
+      throw new ConflictException('Email already exists');
     }
 
-    const hashedPassword =
-      await bcrypt.hash(
-        createUserDto.password,
-        12,
-      );
+    const hashedPassword = await bcrypt.hash(createUserDto.password, 12);
 
-    const user =
-      this.usersRepository.create({
-        email: createUserDto.email,
-        password: hashedPassword,
-        name: createUserDto.name,
-      });
+    const user = this.usersRepository.create({
+      email: createUserDto.email,
+      password: hashedPassword,
+      name: createUserDto.name,
+    });
 
-    const savedUser =
-      await this.usersRepository.save(user);
+    const savedUser = await this.usersRepository.save(user);
 
-    const { password, ...result } =
-      savedUser;
+    const { password, ...result } = savedUser;
 
     return result;
   }
@@ -79,14 +60,10 @@ export class UsersService {
       },
       where: [
         {
-          name: ILike(
-            `%${keyword}%`,
-          ),
+          name: ILike(`%${keyword}%`),
         },
         {
-          email: ILike(
-            `%${keyword}%`,
-          ),
+          email: ILike(`%${keyword}%`),
         },
       ],
       order: {

@@ -18,7 +18,6 @@ import { RedisModule } from './redis/redis.module';
 import { ProjectInvitationsModule } from './project-invitations/project-invitations.module';
 import { PresenceModule } from './presence/presence.module';
 
-
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -66,10 +65,9 @@ import { PresenceModule } from './presence/presence.module';
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
     },
-    AppService
+    AppService,
   ],
 })
-
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(RequestIdMiddleware).forRoutes('*');

@@ -9,33 +9,23 @@ import { ProjectMembersService } from '../project-members/project-members.servic
 
 @Injectable()
 export class ProjectManagerGuard implements CanActivate {
-  constructor(
-    private readonly projectMembersService: ProjectMembersService,
-  ) { }
+  constructor(private readonly projectMembersService: ProjectMembersService) {}
 
-  async canActivate(
-    context: ExecutionContext,
-  ): Promise<boolean> {
-    const request =
-      context.switchToHttp().getRequest();
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const request = context.switchToHttp().getRequest();
 
     const userId = request.user.userId;
 
-    const projectId =
-      request.params.projectId ??
-      request.params.id;
+    const projectId = request.params.projectId ?? request.params.id;
 
     if (!projectId) {
-      throw new ForbiddenException(
-        'Project context not found',
-      );
+      throw new ForbiddenException('Project context not found');
     }
 
-    const isManager =
-      await this.projectMembersService.isManager(
-        projectId,
-        userId,
-      );
+    const isManager = await this.projectMembersService.isManager(
+      projectId,
+      userId,
+    );
 
     if (!isManager) {
       throw new ForbiddenException(

@@ -5,17 +5,12 @@ import { PresenceGateway } from './presence.gateway';
 import { PresenceService } from './presence.service';
 
 @Module({
-    imports: [
-        JwtModule.register({
-            secret: process.env.JWT_SECRET,
-        }),
-    ],
-    providers: [
-        PresenceGateway,
-        PresenceService,
-    ],
-    exports: [
-        PresenceService,
-    ],
+  imports: [
+    JwtModule.register({
+      secret: process.env.JWT_SECRET,
+    }),
+  ],
+  providers: [PresenceGateway, PresenceService],
+  exports: [PresenceService],
 })
 export class PresenceModule {}

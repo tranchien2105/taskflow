@@ -1,7 +1,4 @@
-import {
-  ConflictException,
-  Injectable,
-} from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -21,26 +18,20 @@ export class AuthService {
     private readonly userRepository: Repository<User>,
 
     private readonly jwtService: JwtService,
-  ) { }
+  ) {}
 
   async register(registerDto: RegisterDto) {
-    const existingUser =
-      await this.userRepository.findOne({
-        where: {
-          email: registerDto.email,
-        },
-      });
+    const existingUser = await this.userRepository.findOne({
+      where: {
+        email: registerDto.email,
+      },
+    });
 
     if (existingUser) {
-      throw new ConflictException(
-        'Email already exists',
-      );
+      throw new ConflictException('Email already exists');
     }
 
-    const hashedPassword = await bcrypt.hash(
-      registerDto.password,
-      10,
-    );
+    const hashedPassword = await bcrypt.hash(registerDto.password, 10);
 
     const user = this.userRepository.create({
       email: registerDto.email,
@@ -48,8 +39,7 @@ export class AuthService {
       password: hashedPassword,
     });
 
-    const savedUser =
-      await this.userRepository.save(user);
+    const savedUser = await this.userRepository.save(user);
 
     return {
       id: savedUser.id,
@@ -67,9 +57,7 @@ export class AuthService {
       .getOne();
 
     if (!user) {
-      throw new UnauthorizedException(
-        'Invalid credentials',
-      );
+      throw new UnauthorizedException('Invalid credentials');
     }
 
     const passwordValid = await bcrypt.compare(
@@ -78,9 +66,7 @@ export class AuthService {
     );
 
     if (!passwordValid) {
-      throw new UnauthorizedException(
-        'Invalid credentials',
-      );
+      throw new UnauthorizedException('Invalid credentials');
     }
 
     const payload = {
@@ -89,8 +75,7 @@ export class AuthService {
       role: user.role,
     };
 
-    const accessToken =
-      await this.jwtService.signAsync(payload);
+    const accessToken = await this.jwtService.signAsync(payload);
 
     return {
       accessToken,

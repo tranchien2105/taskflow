@@ -8,25 +8,12 @@ import { User } from '../users/entities/user.entity';
 import { ProjectMembersModule } from '../project-members/project-members.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([
-      Project,
-      User,
-    ]),
+  imports: [TypeOrmModule.forFeature([Project, User]), ProjectMembersModule],
 
-    ProjectMembersModule,
-  ],
+  controllers: [ProjectsController],
 
-  controllers: [
-    ProjectsController,
-  ],
+  providers: [ProjectsService],
 
-  providers: [
-    ProjectsService,
-  ],
-
-  exports: [
-    ProjectsService,
-  ],
+  exports: [ProjectsService],
 })
 export class ProjectsModule {}

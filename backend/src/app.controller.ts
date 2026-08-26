@@ -7,6 +7,5 @@ export class AppController {
   constructor(
     private readonly appService: AppService,
     private readonly redisService: RedisService,
-
-  ) { }
+  ) {}
 }

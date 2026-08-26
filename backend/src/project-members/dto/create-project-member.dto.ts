@@ -1,7 +1,4 @@
-import {
-  IsEnum,
-  IsUUID,
-} from 'class-validator';
+import { IsEnum, IsUUID } from 'class-validator';
 
 import { ProjectMemberRole } from '../entities/project-member.entity';
 

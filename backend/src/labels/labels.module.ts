@@ -10,23 +10,12 @@ import { ProjectManagerGuard } from '../project-manager/project-manager.guard';
 import { ProjectAccessGuard } from '../project-access/project-access.guard';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Label]),
-    ProjectMembersModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Label]), ProjectMembersModule],
 
-  controllers: [
-    LabelsController,
-  ],
+  controllers: [LabelsController],
 
-  providers: [
-    LabelsService,
-    ProjectManagerGuard,
-    ProjectAccessGuard
-  ],
+  providers: [LabelsService, ProjectManagerGuard, ProjectAccessGuard],
 
-  exports: [
-    LabelsService,
-  ],
+  exports: [LabelsService],
 })
-export class LabelsModule { }
+export class LabelsModule {}
