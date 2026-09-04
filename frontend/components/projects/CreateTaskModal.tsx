@@ -248,7 +248,7 @@ export default function CreateTaskModal({
              * 1. Create task
              */
             const response = await fetch(
-                '${process.env.NEXT_PUBLIC_API_URL}/tasks',
+                `${process.env.NEXT_PUBLIC_API_URL}/tasks`,
                 {
                     method: 'POST',
                     headers: {

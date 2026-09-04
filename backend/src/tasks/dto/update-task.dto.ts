@@ -31,7 +31,7 @@ export class UpdateTaskDto {
 
   @IsOptional()
   @IsUUID()
-  assigneeId?: string;
+  assigneeId?: string | null;
 
   @IsOptional()
   @IsDateString()

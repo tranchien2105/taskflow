@@ -12,6 +12,7 @@ import TaskDetailModal from '@/components/tasks/TaskDetailModal';
 import ProjectMembers from '@/components/projects/ProjectMembers';
 import ProjectLabels from '@/components/projects/ProjectLabels';
 import { useAuth } from '@/contexts/AuthContext';
+import { apiFetch, UnauthorizedError } from '@/lib/api';
 
 type Project = {
     id: string;
@@ -34,6 +35,13 @@ type Task = {
     status: string;
     priority: string;
     dueDate?: string | null;
+    assigneeId?: string | null;
+    assignee?: {
+        id: string;
+        name?: string | null;
+        email?: string | null;
+        avatar?: string | null;
+    } | null;
 };
 
 type ProjectMember = {
@@ -47,6 +55,10 @@ type ProjectMember = {
         email: string;
         avatar?: string | null;
     };
+};
+
+type ApiResponse<T> = {
+    data: T;
 };
 
 export default function ProjectDetailPage() {
@@ -82,136 +94,118 @@ export default function ProjectDetailPage() {
     const [canManage, setCanManage] =
         useState(false);
 
+    /*
+     * ========================================
+     * Fetch Project
+     * ========================================
+     */
+
     const fetchProject = async () => {
         try {
-            const token =
-                localStorage.getItem('accessToken');
+            const response = await apiFetch<
+                Project | ApiResponse<Project>
+            >(`/projects/${projectId}`);
 
-            if (!token) {
-                router.replace('/login');
-                return;
-            }
+            const data =
+                'data' in response
+                    ? response.data
+                    : response;
 
-            const response = await fetch(
-                `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}`,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                },
-            );
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                toast.error(
-                    data.message ||
-                        'Failed to load project.',
-                );
-
-                return;
-            }
-
-            setProject(data.data ?? data);
+            setProject(data);
         } catch (error) {
+            /*
+             * 401 is already handled inside apiFetch:
+             * - remove accessToken
+             * - redirect to /login
+             *
+             * Therefore we don't show a toast here.
+             */
+            if (error instanceof UnauthorizedError) {
+                return;
+            }
+
             console.error(error);
 
             toast.error(
-                'Unable to connect to the server.',
+                error instanceof Error
+                    ? error.message
+                    : 'Failed to load project.',
             );
         } finally {
             setLoading(false);
         }
     };
 
+    /*
+     * ========================================
+     * Fetch Tasks
+     * ========================================
+     */
+
     const fetchTasks = async () => {
         try {
             setTasksLoading(true);
 
-            const token =
-                localStorage.getItem('accessToken');
-
-            if (!token) {
-                router.replace('/login');
-                return;
-            }
-
-            const response = await fetch(
-                `${process.env.NEXT_PUBLIC_API_URL}/tasks?projectId=${projectId}`,
+            const response = await apiFetch<
+                Task[] |
                 {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                },
-            );
+                    data: Task[];
+                }
+            >(`/tasks?projectId=${projectId}`);
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                toast.error(
-                    data.message ||
-                        'Failed to load tasks.',
-                );
-
-                return;
-            }
-
-            const taskData = data.data ?? data;
+            const taskData =
+                'data' in response
+                    ? response.data
+                    : response;
 
             setTasks(
                 Array.isArray(taskData)
                     ? taskData
-                    : taskData.data ?? [],
+                    : [],
             );
         } catch (error) {
+            if (error instanceof UnauthorizedError) {
+                return;
+            }
+
             console.error(error);
 
             toast.error(
-                'Unable to load tasks.',
+                error instanceof Error
+                    ? error.message
+                    : 'Unable to load tasks.',
             );
         } finally {
             setTasksLoading(false);
         }
     };
 
+    /*
+     * ========================================
+     * Fetch Members
+     * ========================================
+     */
+
     const fetchMembers = async () => {
         try {
             setMembersLoading(true);
 
-            const token =
-                localStorage.getItem('accessToken');
-
-            if (!token) {
-                router.replace('/login');
-                return;
-            }
-
-            const response = await fetch(
-                `${process.env.NEXT_PUBLIC_API_URL}/projects/${projectId}/members`,
+            const response = await apiFetch<
+                ProjectMember[] |
                 {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                },
-            );
+                    data: ProjectMember[];
+                }
+            >(`/projects/${projectId}/members`);
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                toast.error(
-                    data.message ||
-                        'Failed to load project members.',
-                );
-
-                return;
-            }
-
-            const memberData = data.data ?? data;
+            const memberData =
+                'data' in response
+                    ? response.data
+                    : response;
 
             const memberList: ProjectMember[] =
                 Array.isArray(memberData)
                     ? memberData
-                    : memberData.data ?? [];
+                    : [];
 
             setMembers(memberList);
 
@@ -228,23 +222,39 @@ export default function ProjectDetailPage() {
                 currentMember?.role === 'MANAGER',
             );
         } catch (error) {
+            if (error instanceof UnauthorizedError) {
+                return;
+            }
+
             console.error(error);
 
             toast.error(
-                'Unable to load project members.',
+                error instanceof Error
+                    ? error.message
+                    : 'Unable to load project members.',
             );
         } finally {
             setMembersLoading(false);
         }
     };
 
+    /*
+     * ========================================
+     * Initial Load
+     * ========================================
+     */
+
     useEffect(() => {
-        if (!authLoading && !user) {
+        if (authLoading) {
+            return;
+        }
+
+        if (!user) {
             router.replace('/login');
             return;
         }
 
-        if (user && projectId) {
+        if (projectId) {
             fetchProject();
             fetchTasks();
             fetchMembers();
@@ -362,8 +372,6 @@ export default function ProjectDetailPage() {
 
                         <div className="flex min-w-0 gap-5">
 
-                            {/* Project icon */}
-
                             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md border border-pink-200 bg-pink-50 font-mono text-xl font-bold text-pink-600">
                                 {project.name
                                     .charAt(0)
@@ -403,8 +411,6 @@ export default function ProjectDetailPage() {
 
                         </div>
 
-                        {/* Actions */}
-
                         {canManage && (
                             <div className="flex shrink-0 gap-2">
 
@@ -435,8 +441,6 @@ export default function ProjectDetailPage() {
 
                 <section className="mt-5 grid gap-px overflow-hidden border border-pink-100 bg-pink-100 sm:grid-cols-2 lg:grid-cols-4">
 
-                    {/* Status */}
-
                     <div className="bg-white px-5 py-5">
 
                         <p className="font-mono text-[11px] uppercase tracking-wider text-gray-400">
@@ -448,8 +452,6 @@ export default function ProjectDetailPage() {
                         </p>
 
                     </div>
-
-                    {/* Priority */}
 
                     <div className="bg-white px-5 py-5">
 
@@ -463,8 +465,6 @@ export default function ProjectDetailPage() {
 
                     </div>
 
-                    {/* Start date */}
-
                     <div className="bg-white px-5 py-5">
 
                         <p className="font-mono text-[11px] uppercase tracking-wider text-gray-400">
@@ -477,8 +477,6 @@ export default function ProjectDetailPage() {
                         </p>
 
                     </div>
-
-                    {/* Due date */}
 
                     <div className="bg-white px-5 py-5">
 

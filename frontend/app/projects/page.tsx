@@ -12,6 +12,10 @@ import { toast } from 'sonner';
 
 import { useAuth } from '@/contexts/AuthContext';
 import Navbar from '@/components/Navbar';
+import {
+    apiFetch,
+    UnauthorizedError,
+} from '@/lib/api';
 
 type Project = {
     id: string;
@@ -23,6 +27,14 @@ type Project = {
     startDate?: string | null;
     dueDate?: string | null;
     createdAt: string;
+};
+
+type ProjectListResponse = {
+    data: Project[];
+};
+
+type CreateProjectResponse = {
+    data: Project;
 };
 
 export default function ProjectsPage() {
@@ -54,7 +66,9 @@ export default function ProjectsPage() {
         useState('MEDIUM');
 
     /**
+     * ========================================
      * Auth guard
+     * ========================================
      */
     useEffect(() => {
         if (!authLoading && !user) {
@@ -63,7 +77,9 @@ export default function ProjectsPage() {
     }, [authLoading, user, router]);
 
     /**
+     * ========================================
      * Generate slug from project name
+     * ========================================
      */
     const generateSlug = (value: string) => {
         return value
@@ -75,7 +91,9 @@ export default function ProjectsPage() {
     };
 
     /**
+     * ========================================
      * Name change
+     * ========================================
      */
     const handleNameChange = (
         event: React.ChangeEvent<HTMLInputElement>,
@@ -87,55 +105,62 @@ export default function ProjectsPage() {
     };
 
     /**
+     * ========================================
      * Fetch projects
+     * ========================================
+     *
+     * Authentication and 401 handling are
+     * handled by apiFetch().
      */
     const fetchProjects = async () => {
         try {
             setLoading(true);
             setError('');
 
-            const token =
-                localStorage.getItem('accessToken');
+            const response = await apiFetch<
+                ProjectListResponse | Project[]
+            >('/projects');
 
-            if (!token) {
-                router.replace('/login');
-                return;
-            }
+            const projectData =
+                'data' in response
+                    ? response.data
+                    : response;
 
-            const response = await fetch(
-                `${process.env.NEXT_PUBLIC_API_URL}/projects`,
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                },
+            setProjects(
+                Array.isArray(projectData)
+                    ? projectData
+                    : [],
             );
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                setError(
-                    data.message ||
-                        'Failed to load projects.',
-                );
-
+        } catch (error) {
+            /*
+             * 401 is already handled inside apiFetch:
+             *
+             * - remove accessToken
+             * - redirect to /login
+             *
+             * Do not show an Unauthorized toast.
+             */
+            if (error instanceof UnauthorizedError) {
                 return;
             }
 
-            setProjects(data.data ?? data);
-        } catch (error) {
             console.error(error);
 
-            setError(
-                'Unable to connect to the server.',
-            );
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : 'Unable to connect to the server.';
+
+            setError(message);
         } finally {
             setLoading(false);
         }
     };
 
     /**
+     * ========================================
      * Load projects after authentication
+     * ========================================
      */
     useEffect(() => {
         if (user) {
@@ -144,7 +169,9 @@ export default function ProjectsPage() {
     }, [user]);
 
     /**
+     * ========================================
      * Create project
+     * ========================================
      */
     const handleCreateProject = async (
         event: FormEvent<HTMLFormElement>,
@@ -163,50 +190,25 @@ export default function ProjectsPage() {
             setCreating(true);
             setError('');
 
-            const token =
-                localStorage.getItem('accessToken');
-
-            if (!token) {
-                router.replace('/login');
-                return;
-            }
-
-            const response = await fetch(
-                `${process.env.NEXT_PUBLIC_API_URL}/projects`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type':
-                            'application/json',
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({
-                        name: name.trim(),
-                        slug: slug.trim(),
-                        description:
-                            description.trim() ||
-                            undefined,
-                        status,
-                        priority,
-                    }),
-                },
-            );
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                const message =
-                    data.message ||
-                    'Failed to create project.';
-
-                setError(message);
-                toast.error(message);
-
-                return;
-            }
+            const response = await apiFetch<
+                CreateProjectResponse | Project
+            >('/projects', {
+                method: 'POST',
+                body: JSON.stringify({
+                    name: name.trim(),
+                    slug: slug.trim(),
+                    description:
+                        description.trim() ||
+                        undefined,
+                    status,
+                    priority,
+                }),
+            });
 
             const newProject =
-                data.data ?? data;
+                'data' in response
+                    ? response.data
+                    : response;
 
             setProjects((currentProjects) => [
                 newProject,
@@ -226,10 +228,20 @@ export default function ProjectsPage() {
 
             setShowCreateModal(false);
         } catch (error) {
+            /*
+             * 401 is already handled by apiFetch.
+             * Don't show a toast for authentication errors.
+             */
+            if (error instanceof UnauthorizedError) {
+                return;
+            }
+
             console.error(error);
 
             const message =
-                'Unable to connect to the server.';
+                error instanceof Error
+                    ? error.message
+                    : 'Unable to connect to the server.';
 
             setError(message);
             toast.error(message);
@@ -239,7 +251,9 @@ export default function ProjectsPage() {
     };
 
     /**
+     * ========================================
      * Loading auth
+     * ========================================
      */
     if (authLoading || !user) {
         return (

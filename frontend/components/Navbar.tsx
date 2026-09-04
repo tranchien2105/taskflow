@@ -5,11 +5,16 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { useAuth } from '@/contexts/AuthContext';
+
 import ProjectInvitationNotification from '@/components/ProjectInvitationNotification';
+
+import Notification from '@/components/Notification';
+
 import SocketTest from '@/components/SocketTest';
 
 export default function Navbar() {
     const { user, logout } = useAuth();
+
     const router = useRouter();
 
     if (!user) {
@@ -78,8 +83,16 @@ export default function Navbar() {
 
                 {/* User */}
                 <div className="flex items-center gap-2.5 sm:gap-3">
+
+                    {/* WebSocket test */}
                     <SocketTest />
+
+                    {/* Project invitations */}
                     <ProjectInvitationNotification />
+
+                    {/* Notifications */}
+                    <Notification />
+
                     {/* User info */}
                     <div className="hidden text-right sm:block">
                         <p className="max-w-[180px] truncate font-mono text-xs font-bold text-slate-800">
@@ -106,7 +119,7 @@ export default function Navbar() {
                     </button>
                 </div>
             </div>
-      
+
             {/* Mobile Navigation */}
             <div className="border-t border-violet-200/70 md:hidden">
                 <nav className="mx-auto flex max-w-7xl items-center gap-1 overflow-x-auto px-4 py-2 sm:px-6">

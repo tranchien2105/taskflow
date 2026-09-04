@@ -27,7 +27,7 @@ export class ProjectsService {
     private readonly usersRepository: Repository<User>,
 
     private readonly dataSource: DataSource,
-  ) {}
+  ) { }
 
   async create(createProjectDto: CreateProjectDto, ownerId: string) {
     const owner = await this.usersRepository.findOne({

@@ -13,6 +13,8 @@ import { TaskQueryDto } from './dto/task-query.dto';
 
 import { ProjectMembersService } from '../project-members/project-members.service';
 import { ProjectMemberRole } from '../project-members/entities/project-member.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/enums/notification-type.enum';
 
 @Injectable()
 export class TasksService {
@@ -21,7 +23,9 @@ export class TasksService {
     private readonly taskRepository: Repository<Task>,
 
     private readonly projectMembersService: ProjectMembersService,
-  ) {}
+
+    private readonly notificationsService: NotificationsService,
+  ) { }
 
   async create(createTaskDto: CreateTaskDto, creatorId: string): Promise<Task> {
     const isMember = await this.projectMembersService.isMember(
@@ -148,7 +152,7 @@ export class TasksService {
       userId,
     );
 
-    // Chỉ Manager được thay đổi assignee
+    // Only Manager can change task assignee
     if (
       updateTaskDto.assigneeId !== undefined &&
       role !== ProjectMemberRole.MANAGER
@@ -158,12 +162,16 @@ export class TasksService {
       );
     }
 
-    // Assignee mới phải thuộc Project
-    if (updateTaskDto.assigneeId !== undefined) {
-      const isAssigneeMember = await this.projectMembersService.isMember(
-        task.projectId,
-        updateTaskDto.assigneeId,
-      );
+    const newAssigneeId = updateTaskDto.assigneeId;
+
+    // Assignee must be a member of the project
+    // null means unassign
+    if (newAssigneeId !== undefined && newAssigneeId !== null) {
+      const isAssigneeMember =
+        await this.projectMembersService.isMember(
+          task.projectId,
+          newAssigneeId,
+        );
 
       if (!isAssigneeMember) {
         throw new ForbiddenException(
@@ -172,9 +180,43 @@ export class TasksService {
       }
     }
 
+    const previousAssigneeId = task.assigneeId;
+
     Object.assign(task, updateTaskDto);
 
-    return this.taskRepository.save(task);
+    const updatedTask = await this.taskRepository.save(task);
+
+    // Assignee changed
+    if (
+      newAssigneeId !== undefined &&
+      previousAssigneeId !== newAssigneeId
+    ) {
+      // Notify previous assignee
+      if (previousAssigneeId) {
+        await this.notificationsService.create({
+          userId: previousAssigneeId,
+          type: NotificationType.TASK_UNASSIGNED,
+          title: 'Task đã được gỡ khỏi bạn',
+          message: `Task "${updatedTask.title}" không còn được giao cho bạn`,
+          entityType: 'task',
+          entityId: updatedTask.id,
+        });
+      }
+
+      // Notify new assignee
+      if (newAssigneeId) {
+        await this.notificationsService.create({
+          userId: newAssigneeId,
+          type: NotificationType.TASK_ASSIGNED,
+          title: 'Task mới được giao',
+          message: `Bạn được giao task "${updatedTask.title}"`,
+          entityType: 'task',
+          entityId: updatedTask.id,
+        });
+      }
+    }
+
+    return updatedTask;
   }
 
   async remove(id: string, userId: string): Promise<{ message: string }> {

@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Req } from '@nestjs/common';
+import { Controller, Post, Get, Req, Body } from '@nestjs/common';
 import { Request } from 'express';
 
 import { AuthService } from './auth.service';
@@ -16,7 +16,7 @@ interface AuthenticatedRequest extends Request {
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Post('register')
   @Public()
@@ -26,7 +26,9 @@ export class AuthController {
 
   @Post('login')
   @Public()
-  login(loginDto: LoginDto) {
+  login(
+    @Body() loginDto: LoginDto,
+  ) {
     return this.authService.login(loginDto);
   }
 

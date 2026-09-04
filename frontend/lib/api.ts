@@ -2,6 +2,21 @@ const API_URL =
     process.env.NEXT_PUBLIC_API_URL ||
     'http://localhost:3000';
 
+/*
+ * ========================================
+ * API Error
+ * ========================================
+ *
+ * Used to identify authentication errors
+ * separately from other API errors.
+ */
+export class UnauthorizedError extends Error {
+    constructor() {
+        super('Unauthorized');
+        this.name = 'UnauthorizedError';
+    }
+}
+
 type ApiOptions = RequestInit & {
     auth?: boolean;
 };
@@ -22,10 +37,22 @@ export async function apiFetch<T>(
         ...fetchOptions
     } = options;
 
+    /*
+     * ========================================
+     * Get access token
+     * ========================================
+     */
+
     const token =
         typeof window !== 'undefined'
             ? localStorage.getItem('accessToken')
             : null;
+
+    /*
+     * ========================================
+     * Request headers
+     * ========================================
+     */
 
     const requestHeaders = new Headers(headers);
 
@@ -53,6 +80,12 @@ export async function apiFetch<T>(
         );
     }
 
+    /*
+     * ========================================
+     * Request
+     * ========================================
+     */
+
     const response = await fetch(
         `${API_URL}${endpoint}`,
         {
@@ -61,9 +94,27 @@ export async function apiFetch<T>(
         },
     );
 
-    /**
+    /*
+     * ========================================
+     * Unauthorized
+     * ========================================
+     *
      * Token expired or invalid.
+     *
+     * Flow:
+     *
+     * 401
+     *  ↓
+     * remove accessToken
+     *  ↓
+     * redirect /login
+     *  ↓
+     * throw UnauthorizedError
+     *
+     * The UI can recognize this error and
+     * avoid showing an "Unauthorized" toast.
      */
+
     if (response.status === 401) {
         if (typeof window !== 'undefined') {
             localStorage.removeItem(
@@ -73,14 +124,15 @@ export async function apiFetch<T>(
             window.location.replace('/login');
         }
 
-        throw new Error(
-            'Your session has expired.',
-        );
+        throw new UnauthorizedError();
     }
 
-    /**
-     * Parse response body.
+    /*
+     * ========================================
+     * Parse response body
+     * ========================================
      */
+
     let data: T | ApiErrorResponse;
 
     try {
@@ -91,9 +143,12 @@ export async function apiFetch<T>(
         );
     }
 
-    /**
-     * Handle HTTP errors.
+    /*
+     * ========================================
+     * Handle HTTP errors
+     * ========================================
      */
+
     if (!response.ok) {
         const errorData =
             data as ApiErrorResponse;
@@ -117,8 +172,11 @@ export async function apiFetch<T>(
         throw new Error(message);
     }
 
-    /**
-     * Response is successful.
+    /*
+     * ========================================
+     * Response is successful
+     * ========================================
      */
+
     return data as T;
 }

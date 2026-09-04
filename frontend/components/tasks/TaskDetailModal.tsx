@@ -7,6 +7,8 @@ import {
     useState,
 } from 'react';
 import { toast } from 'sonner';
+import TaskDetailDeleteConfirm from './TaskDetailDeleteConfirm';
+import TaskDetailHeader from './TaskDetailHeader';
 import TaskLabels from './TaskLabels';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -910,11 +912,11 @@ export default function TaskDetailModal({
 
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6 backdrop-blur-sm"
             onClick={onClose}
         >
             <div
-                className="relative flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-[#fff7fb] shadow-lg"
+                className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden border border-pink-100 bg-white shadow-2xl [&_button]:rounded-none [&_button]:font-mono [&_button]:text-xs [&_input]:rounded-none [&_label]:font-mono [&_label]:text-xs [&_label]:font-bold [&_label]:uppercase [&_label]:tracking-wide [&_select]:rounded-none [&_textarea]:rounded-none"
                 onClick={(event) =>
                     event.stopPropagation()
                 }
@@ -926,58 +928,12 @@ export default function TaskDetailModal({
                  */}
 
                 {showDeleteConfirm && (
-                    <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#fff7fb]/95 p-6 backdrop-blur-sm">
-                        <div className="w-full max-w-sm text-center">
-                            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-xl font-bold text-red-600">
-                                !
-                            </div>
-
-                            <h3 className="mt-4 text-lg font-bold text-slate-900">
-                                Delete this task?
-                            </h3>
-
-                            <p className="mt-2 text-sm leading-6 text-slate-500">
-                                Are you sure you
-                                want to delete{' '}
-                                <span className="font-semibold text-slate-700">
-                                    "{task.title}"
-                                </span>
-                                ?
-                            </p>
-
-                            <div className="mt-6 flex justify-center gap-3">
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setShowDeleteConfirm(
-                                            false,
-                                        )
-                                    }
-                                    disabled={
-                                        deleting
-                                    }
-                                    className="rounded-lg border border-[#eadde7] bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    Cancel
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={
-                                        handleDelete
-                                    }
-                                    disabled={
-                                        deleting
-                                    }
-                                    className="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    {deleting
-                                        ? 'Deleting...'
-                                        : 'Delete'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    <TaskDetailDeleteConfirm
+                        taskTitle={task.title}
+                        deleting={deleting}
+                        onCancel={() => setShowDeleteConfirm(false)}
+                        onConfirm={handleDelete}
+                    />
                 )}
 
                 {/*
@@ -986,31 +942,12 @@ export default function TaskDetailModal({
                  * ----------------------------------------
                  */}
 
-                <div className="flex shrink-0 items-start justify-between border-b border-[#f3e8f0] bg-white px-6 py-5">
-                    <div className="min-w-0 pr-4">
-                        <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-fuchsia-600">
-                            {editing
-                                ? 'Edit task'
-                                : 'Task details'}
-                        </p>
-
-                        <h2 className="break-words text-xl font-bold text-slate-900 sm:text-2xl">
-                            {editing
-                                ? 'Update task'
-                                : task.title}
-                        </h2>
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        disabled={saving}
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        aria-label="Close"
-                    >
-                        ×
-                    </button>
-                </div>
+                <TaskDetailHeader
+                    title={task.title}
+                    editing={editing}
+                    saving={saving}
+                    onClose={onClose}
+                />
 
                 {/*
                  * ========================================

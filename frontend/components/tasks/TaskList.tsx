@@ -8,6 +8,13 @@ type Task = {
     status: string;
     priority: string;
     dueDate?: string | null;
+    assigneeId?: string | null;
+    assignee?: {
+        id: string;
+        name?: string | null;
+        email?: string | null;
+        avatar?: string | null;
+    } | null;
 };
 
 type TaskListProps = {
@@ -50,6 +57,24 @@ const getPriorityStyle = (priority: string) => {
 
 const formatStatus = (status: string) => {
     return status.replace('_', ' ');
+};
+
+const getAssigneeName = (task: Task) => {
+    return task.assignee?.name || task.assignee?.email || 'Unassigned';
+};
+
+const getAssigneeInitials = (task: Task) => {
+    const name = getAssigneeName(task);
+
+    if (name === 'Unassigned') {
+        return '?';
+    }
+
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+
+    return parts.length === 1
+        ? parts[0].slice(0, 2).toUpperCase()
+        : `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 };
 
 export default function TaskList({
@@ -177,6 +202,16 @@ export default function TaskList({
                                             // no deadline
                                         </div>
                                     )}
+
+                                    <div className="flex items-center gap-2 font-mono text-[11px] text-slate-500">
+                                        <span className={`flex h-6 w-6 items-center justify-center border font-mono text-[10px] font-bold ${task.assignee ? 'border-pink-200 bg-pink-50 text-pink-600' : 'border-slate-200 bg-slate-50 text-slate-400'}`}>
+                                            {getAssigneeInitials(task)}
+                                        </span>
+
+                                        <span className="max-w-36 truncate">
+                                            assignee: {getAssigneeName(task)}
+                                        </span>
+                                    </div>
 
                                     <div className="ml-auto hidden font-mono text-[11px] text-slate-300 transition group-hover:text-pink-400 sm:block">
                                         open →

@@ -21,7 +21,7 @@ import type { AuthenticatedRequest } from '../common/interfaces/authenticated-re
 
 @Controller('projects')
 export class ProjectsController {
-  constructor(private readonly projectsService: ProjectsService) {}
+  constructor(private readonly projectsService: ProjectsService) { }
 
   @Post()
   create(
