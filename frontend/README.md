@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Taskflow Frontend
 
-## Getting Started
+Giao diện web của Taskflow, xây dựng bằng Next.js 16, React 19 và Tailwind CSS 4.
 
-First, run the development server:
+## Chức năng
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Đăng ký, đăng nhập và tự chuyển về trang đăng nhập khi phiên JWT hết hạn.
+- Dashboard, danh sách project và trang chi tiết project.
+- Tạo, cập nhật và xóa task; hiển thị trạng thái, độ ưu tiên, deadline, labels và người được giao.
+- Quản lý thành viên, nhãn project và lời mời tham gia project.
+- Hiển thị notification từ backend qua Socket.IO.
+
+## Yêu cầu
+
+- Node.js 22+
+- Backend Taskflow đang chạy (mặc định tại `http://localhost:3000`)
+
+## Cấu hình môi trường
+
+Tạo file `frontend/.env.local`:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Đổi URL này khi backend chạy trên host hoặc port khác. Không commit `.env.local` nếu chứa thông tin riêng của môi trường deploy.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Chạy local
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm ci
+npm run dev
+```
 
-## Learn More
+Mặc định ứng dụng chạy tại [http://localhost:3001](http://localhost:3001).
 
-To learn more about Next.js, take a look at the following resources:
+## Scripts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run dev      # Next.js development server, port 3001
+npm run build    # Build production
+npm run start    # Chạy bản production đã build
+npm run lint     # Kiểm tra ESLint
+npx tsc --noEmit # Kiểm tra TypeScript không tạo file build
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Cấu trúc chính
 
-## Deploy on Vercel
+```text
+app/                     # Routes: dashboard, login, projects
+components/tasks/        # Danh sách task, labels và task detail modal
+components/projects/     # Tạo task, members và project labels
+contexts/AuthContext.tsx # Phiên người dùng phía client
+lib/api.ts               # API client, tự gắn Bearer token
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Luồng xác thực
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Sau khi đăng nhập, access token được lưu ở `localStorage`. `apiFetch` tự gửi token trong header `Authorization: Bearer <token>` và xóa token/chuyển đến `/login` khi server trả về `401`.
