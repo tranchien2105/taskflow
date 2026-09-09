@@ -18,6 +18,8 @@ import { RedisModule } from './redis/redis.module';
 import { ProjectInvitationsModule } from './project-invitations/project-invitations.module';
 import { PresenceModule } from './presence/presence.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
   imports: [
@@ -59,6 +61,10 @@ import { NotificationsModule } from './notifications/notifications.module';
     PresenceModule,
 
     NotificationsModule,
+
+    DashboardModule,
+
+    MailModule,
   ],
 
   controllers: [AppController],

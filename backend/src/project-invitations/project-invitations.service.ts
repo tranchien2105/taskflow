@@ -20,6 +20,8 @@ import { ProjectMembersService } from '../project-members/project-members.servic
 
 import { ProjectInvitationsGateway } from './project-invitations.gateway';
 
+import { MailService } from '../mail/mail.service';
+
 @Injectable()
 export class ProjectInvitationsService {
   constructor(
@@ -30,20 +32,26 @@ export class ProjectInvitationsService {
     private readonly projectMembersService: ProjectMembersService,
 
     private readonly gateway: ProjectInvitationsGateway,
-  ) {}
+
+    private readonly mailService: MailService,
+  ) { }
 
   async createInvitation(
     projectId: string,
     invitedUserId: string,
     invitedByUserId: string,
   ): Promise<ProjectInvitation> {
-    const existingInvitation = await this.invitationRepository.findOne({
-      where: {
-        projectId,
-        invitedUserId,
-        status: ProjectInvitationStatus.PENDING,
-      },
-    });
+    /**
+     * Check pending invitation
+     */
+    const existingInvitation =
+      await this.invitationRepository.findOne({
+        where: {
+          projectId,
+          invitedUserId,
+          status: ProjectInvitationStatus.PENDING,
+        },
+      });
 
     if (existingInvitation) {
       throw new BadRequestException(
@@ -51,6 +59,9 @@ export class ProjectInvitationsService {
       );
     }
 
+    /**
+     * Create invitation
+     */
     const invitation = this.invitationRepository.create({
       projectId,
       invitedUserId,
@@ -58,32 +69,55 @@ export class ProjectInvitationsService {
       status: ProjectInvitationStatus.PENDING,
     });
 
-    const savedInvitation = await this.invitationRepository.save(invitation);
+    const savedInvitation =
+      await this.invitationRepository.save(invitation);
 
     /**
-     * Load project + inviter information.
+     * Load project + invited user + inviter
      *
-     * REST API and Socket.IO will return
-     * the same invitation structure.
+     * invitedUser:
+     *   - email
+     *   - name
+     *
+     * invitedBy:
+     *   - name
+     *
+     * project:
+     *   - name
      */
-    const invitationWithRelations = await this.invitationRepository.findOne({
-      where: {
-        id: savedInvitation.id,
-      },
-      relations: {
-        project: true,
-        invitedBy: true,
-      },
-    });
+    const invitationWithRelations =
+      await this.invitationRepository.findOne({
+        where: {
+          id: savedInvitation.id,
+        },
+        relations: {
+          project: true,
+          invitedUser: true,
+          invitedBy: true,
+        },
+      });
 
     if (!invitationWithRelations) {
-      throw new NotFoundException('Invitation not found after creation.');
+      throw new NotFoundException(
+        'Invitation not found after creation.',
+      );
     }
 
     /**
      * Realtime notification
      */
-    this.gateway.emitInvitationCreated(invitedUserId, invitationWithRelations);
+    this.gateway.emitInvitationCreated(
+      invitedUserId,
+      invitationWithRelations,
+    );
+
+    /** * Send project invitation email */
+    await this.mailService.sendProjectInvitationEmail({
+      invitedUserEmail: invitationWithRelations.invitedUser.email,
+      invitedUserName: invitationWithRelations.invitedUser.name,
+      inviterName: invitationWithRelations.invitedBy.name,
+      projectName: invitationWithRelations.project.name,
+    });
 
     return invitationWithRelations;
   }
@@ -92,82 +126,130 @@ export class ProjectInvitationsService {
     invitationId: string,
     userId: string,
   ): Promise<ProjectInvitation> {
-    const invitation = await this.invitationRepository.findOne({
-      where: {
-        id: invitationId,
-      },
-    });
+    const invitation =
+      await this.invitationRepository.findOne({
+        where: {
+          id: invitationId,
+        },
+      });
 
     if (!invitation) {
-      throw new NotFoundException('Invitation not found.');
+      throw new NotFoundException(
+        'Invitation not found.',
+      );
     }
 
-    // Chỉ người được mời mới được accept
+    /**
+     * Only invited user can accept invitation
+     */
     if (invitation.invitedUserId !== userId) {
-      throw new ForbiddenException('You cannot accept this invitation.');
+      throw new ForbiddenException(
+        'You cannot accept this invitation.',
+      );
     }
 
-    // Chỉ invitation PENDING mới được accept
-    if (invitation.status !== ProjectInvitationStatus.PENDING) {
-      throw new BadRequestException('This invitation is no longer pending.');
+    /**
+     * Only PENDING invitation can be accepted
+     */
+    if (
+      invitation.status !==
+      ProjectInvitationStatus.PENDING
+    ) {
+      throw new BadRequestException(
+        'This invitation is no longer pending.',
+      );
     }
 
-    // Tạo project member
-    const member = await this.projectMembersService.create(
+    /**
+     * Create project member
+     */
+    const member =
+      await this.projectMembersService.create(
+        invitation.projectId,
+        {
+          userId: invitation.invitedUserId,
+        },
+      );
+
+    /**
+     * Realtime notification
+     */
+    this.gateway.emitProjectMemberAdded(
       invitation.projectId,
-      {
-        userId: invitation.invitedUserId,
-      },
+      member,
     );
 
-    // Realtime thông báo project có member mới
-    this.gateway.emitProjectMemberAdded(invitation.projectId, member);
+    /**
+     * Update invitation status
+     */
+    invitation.status =
+      ProjectInvitationStatus.ACCEPTED;
 
-    // Đổi trạng thái invitation
-    invitation.status = ProjectInvitationStatus.ACCEPTED;
-
-    return this.invitationRepository.save(invitation);
+    return this.invitationRepository.save(
+      invitation,
+    );
   }
 
   async rejectInvitation(
     invitationId: string,
     userId: string,
   ): Promise<ProjectInvitation> {
-    const invitation = await this.invitationRepository.findOne({
-      where: {
-        id: invitationId,
-      },
-    });
+    const invitation =
+      await this.invitationRepository.findOne({
+        where: {
+          id: invitationId,
+        },
+      });
 
     if (!invitation) {
-      throw new NotFoundException('Invitation not found.');
+      throw new NotFoundException(
+        'Invitation not found.',
+      );
     }
 
-    // Chỉ người được mời mới được reject
+    /**
+     * Only invited user can reject invitation
+     */
     if (invitation.invitedUserId !== userId) {
-      throw new ForbiddenException('You cannot reject this invitation.');
+      throw new ForbiddenException(
+        'You cannot reject this invitation.',
+      );
     }
 
-    // Chỉ invitation PENDING mới được reject
-    if (invitation.status !== ProjectInvitationStatus.PENDING) {
-      throw new BadRequestException('This invitation is no longer pending.');
+    /**
+     * Only PENDING invitation can be rejected
+     */
+    if (
+      invitation.status !==
+      ProjectInvitationStatus.PENDING
+    ) {
+      throw new BadRequestException(
+        'This invitation is no longer pending.',
+      );
     }
 
-    invitation.status = ProjectInvitationStatus.REJECTED;
+    invitation.status =
+      ProjectInvitationStatus.REJECTED;
 
-    return this.invitationRepository.save(invitation);
+    return this.invitationRepository.save(
+      invitation,
+    );
   }
 
-  async findMyInvitations(userId: string): Promise<ProjectInvitation[]> {
+  async findMyInvitations(
+    userId: string,
+  ): Promise<ProjectInvitation[]> {
     return this.invitationRepository.find({
       where: {
         invitedUserId: userId,
         status: ProjectInvitationStatus.PENDING,
       },
+
       relations: {
         project: true,
         invitedBy: true,
       },
+
       order: {
         createdAt: 'DESC',
       },

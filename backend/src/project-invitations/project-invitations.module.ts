@@ -14,6 +14,8 @@ import { ProjectMembersModule } from '../project-members/project-members.module'
 
 import { AuthModule } from '../auth/auth.module';
 
+import { MailModule } from '../mail/mail.module';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([ProjectInvitation]),
@@ -21,12 +23,17 @@ import { AuthModule } from '../auth/auth.module';
     forwardRef(() => ProjectMembersModule),
 
     AuthModule,
+
+    MailModule,
   ],
 
   controllers: [ProjectInvitationsController],
 
-  providers: [ProjectInvitationsService, ProjectInvitationsGateway],
+  providers: [
+    ProjectInvitationsService,
+    ProjectInvitationsGateway,
+  ],
 
   exports: [ProjectInvitationsService],
 })
-export class ProjectInvitationsModule {}
+export class ProjectInvitationsModule { }

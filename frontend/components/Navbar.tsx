@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -17,6 +17,8 @@ export default function Navbar() {
 
     const router = useRouter();
 
+    const pathname = usePathname();
+
     if (!user) {
         return null;
     }
@@ -25,6 +27,13 @@ export default function Navbar() {
         logout();
         router.replace('/login');
     };
+
+    const isDashboardActive =
+        pathname === '/dashboard';
+
+    const isProjectsActive =
+        pathname === '/projects' ||
+        pathname.startsWith('/projects/');
 
     return (
         <header className="sticky top-0 z-50 border-b border-violet-200/80 bg-[#f3efff]/95 backdrop-blur">
@@ -58,22 +67,45 @@ export default function Navbar() {
 
                 {/* Desktop Navigation */}
                 <nav className="hidden items-center gap-1 md:flex">
+
+                    {/* Dashboard */}
                     <Link
                         href="/dashboard"
-                        className="group flex items-center gap-2 rounded-md px-3.5 py-2 font-mono text-xs font-semibold text-slate-600 transition hover:bg-white hover:text-fuchsia-700"
+                        className={`group flex items-center gap-2 rounded-md px-3.5 py-2 font-mono text-xs font-semibold transition ${
+                            isDashboardActive
+                                ? 'bg-white text-fuchsia-700'
+                                : 'text-slate-600 hover:bg-white hover:text-fuchsia-700'
+                        }`}
                     >
-                        <span className="text-slate-400 transition group-hover:text-fuchsia-500">
+                        <span
+                            className={
+                                isDashboardActive
+                                    ? 'text-fuchsia-500'
+                                    : 'text-slate-400 transition group-hover:text-fuchsia-500'
+                            }
+                        >
                             ~/
                         </span>
 
                         dashboard
                     </Link>
 
+                    {/* Projects */}
                     <Link
                         href="/projects"
-                        className="group flex items-center gap-2 rounded-md px-3.5 py-2 font-mono text-xs font-semibold text-slate-600 transition hover:bg-white hover:text-fuchsia-700"
+                        className={`group flex items-center gap-2 rounded-md px-3.5 py-2 font-mono text-xs font-semibold transition ${
+                            isProjectsActive
+                                ? 'bg-white text-fuchsia-700'
+                                : 'text-slate-600 hover:bg-white hover:text-fuchsia-700'
+                        }`}
                     >
-                        <span className="text-slate-400 transition group-hover:text-fuchsia-500">
+                        <span
+                            className={
+                                isProjectsActive
+                                    ? 'text-fuchsia-500'
+                                    : 'text-slate-400 transition group-hover:text-fuchsia-500'
+                            }
+                        >
                             ~/
                         </span>
 
@@ -106,7 +138,9 @@ export default function Navbar() {
 
                     {/* Avatar */}
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-fuchsia-200 bg-white font-mono text-xs font-bold text-fuchsia-600">
-                        {user.name?.charAt(0).toUpperCase()}
+                        {user.name
+                            ?.charAt(0)
+                            .toUpperCase()}
                     </div>
 
                     {/* Logout */}
@@ -123,16 +157,27 @@ export default function Navbar() {
             {/* Mobile Navigation */}
             <div className="border-t border-violet-200/70 md:hidden">
                 <nav className="mx-auto flex max-w-7xl items-center gap-1 overflow-x-auto px-4 py-2 sm:px-6">
+
+                    {/* Dashboard */}
                     <Link
                         href="/dashboard"
-                        className="shrink-0 rounded-md px-3 py-1.5 font-mono text-[11px] font-semibold text-slate-500 transition hover:bg-white hover:text-fuchsia-600"
+                        className={`shrink-0 rounded-md px-3 py-1.5 font-mono text-[11px] font-semibold transition ${
+                            isDashboardActive
+                                ? 'bg-white text-fuchsia-600'
+                                : 'text-slate-500 hover:bg-white hover:text-fuchsia-600'
+                        }`}
                     >
                         ~/dashboard
                     </Link>
 
+                    {/* Projects */}
                     <Link
                         href="/projects"
-                        className="shrink-0 rounded-md px-3 py-1.5 font-mono text-[11px] font-semibold text-slate-500 transition hover:bg-white hover:text-fuchsia-600"
+                        className={`shrink-0 rounded-md px-3 py-1.5 font-mono text-[11px] font-semibold transition ${
+                            isProjectsActive
+                                ? 'bg-white text-fuchsia-600'
+                                : 'text-slate-500 hover:bg-white hover:text-fuchsia-600'
+                        }`}
                     >
                         ~/projects
                     </Link>

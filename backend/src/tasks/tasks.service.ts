@@ -27,21 +27,27 @@ export class TasksService {
     private readonly notificationsService: NotificationsService,
   ) { }
 
-  async create(createTaskDto: CreateTaskDto, creatorId: string): Promise<Task> {
+  async create(
+    createTaskDto: CreateTaskDto,
+    creatorId: string,
+  ): Promise<Task> {
     const isMember = await this.projectMembersService.isMember(
       createTaskDto.projectId,
       creatorId,
     );
 
     if (!isMember) {
-      throw new ForbiddenException('You are not a member of this project');
+      throw new ForbiddenException(
+        'You are not a member of this project',
+      );
     }
 
     if (createTaskDto.assigneeId) {
-      const isAssigneeMember = await this.projectMembersService.isMember(
-        createTaskDto.projectId,
-        createTaskDto.assigneeId,
-      );
+      const isAssigneeMember =
+        await this.projectMembersService.isMember(
+          createTaskDto.projectId,
+          createTaskDto.assigneeId,
+        );
 
       if (!isAssigneeMember) {
         throw new ForbiddenException(
@@ -55,7 +61,14 @@ export class TasksService {
       creatorId,
     });
 
-    return this.taskRepository.save(task);
+    const createdTask = await this.taskRepository.save(task);
+
+    // Notify assignee when task is created with an assignee
+    if (createdTask.assigneeId) {
+      await this.notifyTaskAssigned(createdTask);
+    }
+
+    return createdTask;
   }
 
   async findAll(query: TaskQueryDto, userId: string) {
@@ -81,7 +94,9 @@ export class TasksService {
         'projectMember',
         'projectMember.project_id = task.project_id',
       )
-      .andWhere('projectMember.user_id = :userId', { userId });
+      .andWhere('projectMember.user_id = :userId', {
+        userId,
+      });
 
     if (search) {
       queryBuilder.andWhere(
@@ -93,19 +108,27 @@ export class TasksService {
     }
 
     if (status) {
-      queryBuilder.andWhere('task.status = :status', { status });
+      queryBuilder.andWhere('task.status = :status', {
+        status,
+      });
     }
 
     if (priority) {
-      queryBuilder.andWhere('task.priority = :priority', { priority });
+      queryBuilder.andWhere('task.priority = :priority', {
+        priority,
+      });
     }
 
     if (projectId) {
-      queryBuilder.andWhere('task.projectId = :projectId', { projectId });
+      queryBuilder.andWhere('task.projectId = :projectId', {
+        projectId,
+      });
     }
 
     if (assigneeId) {
-      queryBuilder.andWhere('task.assigneeId = :assigneeId', { assigneeId });
+      queryBuilder.andWhere('task.assigneeId = :assigneeId', {
+        assigneeId,
+      });
     }
 
     const [data, total] = await queryBuilder
@@ -125,16 +148,22 @@ export class TasksService {
     };
   }
 
-  async findOne(id: string, userId: string): Promise<Task> {
+  async findOne(
+    id: string,
+    userId: string,
+  ): Promise<Task> {
     const task = await this.findOneWithoutAuth(id);
 
-    const isMember = await this.projectMembersService.isMember(
-      task.projectId,
-      userId,
-    );
+    const isMember =
+      await this.projectMembersService.isMember(
+        task.projectId,
+        userId,
+      );
 
     if (!isMember) {
-      throw new ForbiddenException('You do not have access to this task');
+      throw new ForbiddenException(
+        'You do not have access to this task',
+      );
     }
 
     return task;
@@ -166,7 +195,10 @@ export class TasksService {
 
     // Assignee must be a member of the project
     // null means unassign
-    if (newAssigneeId !== undefined && newAssigneeId !== null) {
+    if (
+      newAssigneeId !== undefined &&
+      newAssigneeId !== null
+    ) {
       const isAssigneeMember =
         await this.projectMembersService.isMember(
           task.projectId,
@@ -184,7 +216,8 @@ export class TasksService {
 
     Object.assign(task, updateTaskDto);
 
-    const updatedTask = await this.taskRepository.save(task);
+    const updatedTask =
+      await this.taskRepository.save(task);
 
     // Assignee changed
     if (
@@ -193,33 +226,25 @@ export class TasksService {
     ) {
       // Notify previous assignee
       if (previousAssigneeId) {
-        await this.notificationsService.create({
-          userId: previousAssigneeId,
-          type: NotificationType.TASK_UNASSIGNED,
-          title: 'Task đã được gỡ khỏi bạn',
-          message: `Task "${updatedTask.title}" không còn được giao cho bạn`,
-          entityType: 'task',
-          entityId: updatedTask.id,
-        });
+        await this.notifyTaskUnassigned(
+          updatedTask,
+          previousAssigneeId,
+        );
       }
 
       // Notify new assignee
       if (newAssigneeId) {
-        await this.notificationsService.create({
-          userId: newAssigneeId,
-          type: NotificationType.TASK_ASSIGNED,
-          title: 'Task mới được giao',
-          message: `Bạn được giao task "${updatedTask.title}"`,
-          entityType: 'task',
-          entityId: updatedTask.id,
-        });
+        await this.notifyTaskAssigned(updatedTask);
       }
     }
 
     return updatedTask;
   }
 
-  async remove(id: string, userId: string): Promise<{ message: string }> {
+  async remove(
+    id: string,
+    userId: string,
+  ): Promise<{ message: string }> {
     const task = await this.findOne(id, userId);
 
     await this.taskRepository.remove(task);
@@ -229,7 +254,9 @@ export class TasksService {
     };
   }
 
-  async findOneWithoutAuth(id: string): Promise<Task> {
+  async findOneWithoutAuth(
+    id: string,
+  ): Promise<Task> {
     const task = await this.taskRepository.findOne({
       where: { id },
       relations: {
@@ -244,5 +271,42 @@ export class TasksService {
     }
 
     return task;
+  }
+
+  /**
+   * Send notification when a task is assigned to a user.
+   */
+  private async notifyTaskAssigned(
+    task: Task,
+  ): Promise<void> {
+    if (!task.assigneeId) {
+      return;
+    }
+
+    await this.notificationsService.create({
+      userId: task.assigneeId,
+      type: NotificationType.TASK_ASSIGNED,
+      title: 'Task mới được giao',
+      message: `Bạn được giao task "${task.title}"`,
+      entityType: 'task',
+      entityId: task.id,
+    });
+  }
+
+  /**
+   * Send notification when a task is unassigned from a user.
+   */
+  private async notifyTaskUnassigned(
+    task: Task,
+    previousAssigneeId: string,
+  ): Promise<void> {
+    await this.notificationsService.create({
+      userId: previousAssigneeId,
+      type: NotificationType.TASK_UNASSIGNED,
+      title: 'Task đã được gỡ khỏi bạn',
+      message: `Task "${task.title}" không còn được giao cho bạn`,
+      entityType: 'task',
+      entityId: task.id,
+    });
   }
 }

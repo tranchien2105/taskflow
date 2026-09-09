@@ -6,8 +6,6 @@ services:
 
     container_name: taskflow-backend
 
-    restart: unless-stopped
-
     env_file:
       - ./backend/.env
 
@@ -23,13 +21,13 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      mailpit:
+        condition: service_started
 
   postgres:
     image: postgres:16-alpine
 
     container_name: taskflow-postgres
-
-    restart: unless-stopped
 
     environment:
       POSTGRES_DB: taskflow
@@ -57,8 +55,6 @@ services:
 
     container_name: taskflow-redis
 
-    restart: unless-stopped
-
     ports:
       - "6379:6379"
 
@@ -75,6 +71,15 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+
+  mailpit:
+    image: axllent/mailpit:latest
+
+    container_name: taskflow-mailpit
+
+    ports:
+      - "8025:8025"
+      - "1025:1025"
 
 volumes:
   postgres_data:

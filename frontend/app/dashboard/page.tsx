@@ -1,23 +1,121 @@
 'use client';
 
 import Link from 'next/link';
-
-import { useEffect } from 'react';
-
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { useAuth } from '@/contexts/AuthContext';
-
 import Navbar from '@/components/Navbar';
+
+type DashboardData = {
+    overview: {
+        totalProjects: number;
+        totalTasks: number;
+        activeTasks: number;
+        completedTasks: number;
+        overdueTasks: number;
+    };
+
+    taskStatus: {
+        TODO: number;
+        IN_PROGRESS: number;
+        REVIEW: number;
+        DONE: number;
+    };
+
+    priority: {
+        LOW: number;
+        MEDIUM: number;
+        HIGH: number;
+        URGENT: number;
+    };
+
+    myWorkload: {
+        assigned: number;
+        completed: number;
+    };
+};
 
 export default function DashboardPage() {
     const { user, loading } = useAuth();
     const router = useRouter();
 
+    const [dashboard, setDashboard] =
+        useState<DashboardData | null>(null);
+
+    const [dashboardLoading, setDashboardLoading] =
+        useState(true);
+
+    const [dashboardError, setDashboardError] =
+        useState<string | null>(null);
+
     useEffect(() => {
         if (!loading && !user) {
             router.replace('/login');
         }
+    }, [loading, user, router]);
+
+    useEffect(() => {
+        if (loading || !user) {
+            return;
+        }
+
+        const loadDashboard = async () => {
+            try {
+                setDashboardLoading(true);
+                setDashboardError(null);
+
+                const token =
+                    localStorage.getItem('accessToken');
+
+                if (!token) {
+                    router.replace('/login');
+                    return;
+                }
+
+                const response = await fetch(
+                    `${process.env.NEXT_PUBLIC_API_URL}/dashboard`,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                        },
+                    },
+                );
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(
+                        data.message ||
+                            'Failed to load dashboard.',
+                    );
+                }
+
+                // Support both:
+                // { data: {...} }
+                // and
+                // {...}
+                const dashboardData =
+                    data.data ?? data;
+
+                setDashboard(dashboardData);
+            } catch (error) {
+                console.error(
+                    'Dashboard loading error:',
+                    error,
+                );
+
+                setDashboardError(
+                    error instanceof Error
+                        ? error.message
+                        : 'Unable to load dashboard.',
+                );
+            } finally {
+                setDashboardLoading(false);
+            }
+        };
+
+        loadDashboard();
     }, [loading, user, router]);
 
     if (loading || !user) {
@@ -31,6 +129,102 @@ export default function DashboardPage() {
             </main>
         );
     }
+
+    if (dashboardLoading) {
+        return (
+            <div className="min-h-screen bg-[#fff7fb] text-slate-900">
+                <Navbar />
+
+                <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+                    <div className="flex min-h-[60vh] items-center justify-center">
+                        <div className="flex items-center gap-3 font-mono text-xs text-slate-500">
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-fuchsia-600" />
+
+                            loading dashboard...
+                        </div>
+                    </div>
+                </main>
+            </div>
+        );
+    }
+
+    if (dashboardError || !dashboard) {
+        return (
+            <div className="min-h-screen bg-[#fff7fb] text-slate-900">
+                <Navbar />
+
+                <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+                    <div className="border border-red-200 bg-white p-6">
+                        <p className="font-mono text-xs font-bold text-red-500">
+                            dashboard.error
+                        </p>
+
+                        <h1 className="mt-2 text-lg font-bold text-slate-900">
+                            Unable to load dashboard
+                        </h1>
+
+                        <p className="mt-2 text-sm text-slate-500">
+                            {dashboardError ||
+                                'Dashboard data is unavailable.'}
+                        </p>
+                    </div>
+                </main>
+            </div>
+        );
+    }
+
+    const {
+        totalProjects,
+        totalTasks,
+        activeTasks,
+        completedTasks,
+        overdueTasks,
+    } = dashboard.overview;
+
+    const completionPercentage =
+        totalTasks > 0
+            ? Math.round(
+                  (completedTasks / totalTasks) * 100,
+              )
+            : 0;
+
+    const statusItems = [
+        {
+            label: 'TODO',
+            value: dashboard.taskStatus.TODO,
+        },
+        {
+            label: 'IN PROGRESS',
+            value: dashboard.taskStatus.IN_PROGRESS,
+        },
+        {
+            label: 'REVIEW',
+            value: dashboard.taskStatus.REVIEW,
+        },
+        {
+            label: 'DONE',
+            value: dashboard.taskStatus.DONE,
+        },
+    ];
+
+    const priorityItems = [
+        {
+            label: 'LOW',
+            value: dashboard.priority.LOW,
+        },
+        {
+            label: 'MEDIUM',
+            value: dashboard.priority.MEDIUM,
+        },
+        {
+            label: 'HIGH',
+            value: dashboard.priority.HIGH,
+        },
+        {
+            label: 'URGENT',
+            value: dashboard.priority.URGENT,
+        },
+    ];
 
     return (
         <div className="min-h-screen bg-[#fff7fb] text-slate-900">
@@ -93,11 +287,11 @@ export default function DashboardPage() {
                         </div>
 
                         <p className="mt-4 text-3xl font-bold tracking-tight text-slate-900">
-                            0
+                            {totalProjects}
                         </p>
 
                         <p className="mt-1 text-xs text-slate-400">
-                            Total projects
+                            Projects you&apos;re a member of
                         </p>
                     </div>
 
@@ -114,7 +308,7 @@ export default function DashboardPage() {
                         </div>
 
                         <p className="mt-4 text-3xl font-bold tracking-tight text-slate-900">
-                            0
+                            {activeTasks}
                         </p>
 
                         <p className="mt-1 text-xs text-slate-400">
@@ -135,7 +329,7 @@ export default function DashboardPage() {
                         </div>
 
                         <p className="mt-4 text-3xl font-bold tracking-tight text-slate-900">
-                            0
+                            {completedTasks}
                         </p>
 
                         <p className="mt-1 text-xs text-slate-400">
@@ -156,7 +350,7 @@ export default function DashboardPage() {
                         </div>
 
                         <p className="mt-4 text-3xl font-bold tracking-tight text-slate-900">
-                            0
+                            {overdueTasks}
                         </p>
 
                         <p className="mt-1 text-xs text-slate-400">
@@ -167,7 +361,7 @@ export default function DashboardPage() {
 
                 {/* ================= MAIN GRID ================= */}
                 <div className="mt-6 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-                    {/* ================= GET STARTED ================= */}
+                    {/* ================= WORKSPACE PROGRESS ================= */}
                     <section className="border border-pink-100 bg-white">
                         <div className="border-b border-pink-100 bg-pink-50/40 px-5 py-4 sm:px-6">
                             <div className="flex items-center gap-2">
@@ -176,66 +370,69 @@ export default function DashboardPage() {
                                 </span>
 
                                 <h2 className="font-mono text-sm font-bold text-slate-900">
-                                    get-started
+                                    workspace-progress
                                 </h2>
                             </div>
 
                             <p className="mt-1 font-mono text-[10px] text-slate-400">
-                                // organize your work and keep
-                                things moving
+                                // real-time overview of your
+                                workspace
                             </p>
                         </div>
 
                         <div className="p-5 sm:p-6">
-                            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
                                 <div>
                                     <h3 className="text-lg font-bold text-slate-900">
-                                        Ready to get things done?
+                                        {completionPercentage}% completed
                                     </h3>
 
                                     <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
-                                        Create a project,
-                                        organize your tasks,
-                                        and keep your team
-                                        moving forward.
+                                        {completedTasks} of{' '}
+                                        {totalTasks} tasks have
+                                        been completed across
+                                        your workspace.
                                     </p>
                                 </div>
 
                                 <div className="shrink-0">
-                                    <Link
-                                        href="/projects"
-                                        className="inline-flex items-center justify-center rounded-md border border-fuchsia-600 bg-fuchsia-600 px-4 py-2.5 font-mono text-xs font-bold text-white transition hover:border-fuchsia-700 hover:bg-fuchsia-700"
-                                    >
-                                        view-projects
-                                    </Link>
+                                    <span className="font-mono text-xs font-bold text-fuchsia-600">
+                                        {completedTasks}/
+                                        {totalTasks}
+                                    </span>
                                 </div>
                             </div>
 
-                            {/* Progress / workspace status */}
+                            {/* Progress */}
                             <div className="mt-6 border-t border-slate-100 pt-5">
                                 <div className="flex items-center justify-between">
                                     <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                        workspace-status
+                                        completion
                                     </span>
 
                                     <span className="font-mono text-[10px] font-bold text-emerald-600">
-                                        ready
+                                        {completionPercentage}%
                                     </span>
                                 </div>
 
                                 <div className="mt-3 h-1.5 w-full bg-slate-100">
-                                    <div className="h-1.5 w-1/4 bg-fuchsia-500" />
+                                    <div
+                                        className="h-1.5 bg-fuchsia-500 transition-all"
+                                        style={{
+                                            width: `${completionPercentage}%`,
+                                        }}
+                                    />
                                 </div>
 
                                 <p className="mt-2 font-mono text-[10px] text-slate-400">
-                                    // project workspace is ready
-                                    for your next task
+                                    // based on completed vs total
+                                    tasks
                                 </p>
                             </div>
                         </div>
                     </section>
 
-                    {/* ================= QUICK ACTIONS ================= */}
+                    {/* ================= MY WORKLOAD ================= */}
                     <section className="border border-slate-200 bg-white">
                         <div className="border-b border-slate-100 px-5 py-4">
                             <div className="flex items-center gap-2">
@@ -244,68 +441,271 @@ export default function DashboardPage() {
                                 </span>
 
                                 <h2 className="font-mono text-sm font-bold text-slate-900">
-                                    quick-actions
+                                    my-workload
                                 </h2>
                             </div>
 
                             <p className="mt-1 font-mono text-[10px] text-slate-400">
-                                // common workspace actions
+                                // tasks assigned to you
                             </p>
                         </div>
 
-                        <div className="divide-y divide-slate-100">
+                        <div className="grid grid-cols-2 divide-x divide-slate-100">
+                            <div className="p-5">
+                                <p className="font-mono text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                    assigned
+                                </p>
+
+                                <p className="mt-3 text-3xl font-bold text-slate-900">
+                                    {dashboard.myWorkload.assigned}
+                                </p>
+
+                                <p className="mt-1 text-xs text-slate-400">
+                                    Total assigned
+                                </p>
+                            </div>
+
+                            <div className="p-5">
+                                <p className="font-mono text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                    completed
+                                </p>
+
+                                <p className="mt-3 text-3xl font-bold text-emerald-600">
+                                    {dashboard.myWorkload.completed}
+                                </p>
+
+                                <p className="mt-1 text-xs text-slate-400">
+                                    Completed by you
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="border-t border-slate-100 px-5 py-4">
                             <Link
                                 href="/projects"
-                                className="group flex items-center justify-between px-5 py-4 transition hover:bg-pink-50/40"
+                                className="font-mono text-xs font-bold text-fuchsia-600 transition hover:text-fuchsia-700"
                             >
-                                <div className="flex items-center gap-3">
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-md border border-fuchsia-100 bg-fuchsia-50 font-mono text-xs font-bold text-fuchsia-600">
-                                        +
-                                    </div>
-
-                                    <div>
-                                        <p className="text-sm font-semibold text-slate-800 transition group-hover:text-fuchsia-700">
-                                            Create project
-                                        </p>
-
-                                        <p className="mt-0.5 text-xs text-slate-400">
-                                            Start a new workspace
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <span className="font-mono text-xs text-slate-300 transition group-hover:text-fuchsia-500">
-                                    →
-                                </span>
-                            </Link>
-
-                            <Link
-                                href="/projects"
-                                className="group flex items-center justify-between px-5 py-4 transition hover:bg-pink-50/40"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-slate-50 font-mono text-xs font-bold text-slate-500">
-                                        #
-                                    </div>
-
-                                    <div>
-                                        <p className="text-sm font-semibold text-slate-800 transition group-hover:text-fuchsia-700">
-                                            View projects
-                                        </p>
-
-                                        <p className="mt-0.5 text-xs text-slate-400">
-                                            Browse your projects
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <span className="font-mono text-xs text-slate-300 transition group-hover:text-fuchsia-500">
-                                    →
-                                </span>
+                                view-projects →
                             </Link>
                         </div>
                     </section>
                 </div>
+
+                {/* ================= BREAKDOWN ================= */}
+                <div className="mt-6 grid gap-6 lg:grid-cols-2">
+                    {/* Task Status */}
+                    <section className="border border-slate-200 bg-white">
+                        <div className="border-b border-slate-100 px-5 py-4 sm:px-6">
+                            <div className="flex items-center gap-2">
+                                <span className="font-mono text-xs font-bold text-fuchsia-600">
+                                    ::
+                                </span>
+
+                                <h2 className="font-mono text-sm font-bold text-slate-900">
+                                    task-status
+                                </h2>
+                            </div>
+
+                            <p className="mt-1 font-mono text-[10px] text-slate-400">
+                                // distribution by current status
+                            </p>
+                        </div>
+
+                        <div className="space-y-5 p-5 sm:p-6">
+                            {statusItems.map((item) => {
+                                const percentage =
+                                    totalTasks > 0
+                                        ? Math.round(
+                                              (item.value /
+                                                  totalTasks) *
+                                                  100,
+                                          )
+                                        : 0;
+
+                                return (
+                                    <div
+                                        key={item.label}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-mono text-[10px] font-bold text-slate-500">
+                                                {item.label}
+                                            </span>
+
+                                            <span className="font-mono text-[10px] font-bold text-slate-800">
+                                                {item.value}{' '}
+                                                <span className="text-slate-300">
+                                                    /
+                                                </span>{' '}
+                                                {percentage}%
+                                            </span>
+                                        </div>
+
+                                        <div className="mt-2 h-1.5 w-full bg-slate-100">
+                                            <div
+                                                className="h-1.5 bg-fuchsia-500 transition-all"
+                                                style={{
+                                                    width: `${percentage}%`,
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </section>
+
+                    {/* Priority */}
+                    <section className="border border-slate-200 bg-white">
+                        <div className="border-b border-slate-100 px-5 py-4 sm:px-6">
+                            <div className="flex items-center gap-2">
+                                <span className="font-mono text-xs font-bold text-fuchsia-600">
+                                    ::
+                                </span>
+
+                                <h2 className="font-mono text-sm font-bold text-slate-900">
+                                    priority
+                                </h2>
+                            </div>
+
+                            <p className="mt-1 font-mono text-[10px] text-slate-400">
+                                // distribution by task priority
+                            </p>
+                        </div>
+
+                        <div className="space-y-5 p-5 sm:p-6">
+                            {priorityItems.map((item) => {
+                                const percentage =
+                                    totalTasks > 0
+                                        ? Math.round(
+                                              (item.value /
+                                                  totalTasks) *
+                                                  100,
+                                          )
+                                        : 0;
+
+                                const isUrgent =
+                                    item.label === 'URGENT';
+
+                                const isHigh =
+                                    item.label === 'HIGH';
+
+                                return (
+                                    <div
+                                        key={item.label}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <span
+                                                className={`font-mono text-[10px] font-bold ${
+                                                    isUrgent
+                                                        ? 'text-red-500'
+                                                        : isHigh
+                                                          ? 'text-orange-500'
+                                                          : 'text-slate-500'
+                                                }`}
+                                            >
+                                                {item.label}
+                                            </span>
+
+                                            <span className="font-mono text-[10px] font-bold text-slate-800">
+                                                {item.value}{' '}
+                                                <span className="text-slate-300">
+                                                    /
+                                                </span>{' '}
+                                                {percentage}%
+                                            </span>
+                                        </div>
+
+                                        <div className="mt-2 h-1.5 w-full bg-slate-100">
+                                            <div
+                                                className={`h-1.5 transition-all ${
+                                                    isUrgent
+                                                        ? 'bg-red-500'
+                                                        : isHigh
+                                                          ? 'bg-orange-500'
+                                                          : 'bg-fuchsia-500'
+                                                }`}
+                                                style={{
+                                                    width: `${percentage}%`,
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </section>
+                </div>
+
+                {/* ================= QUICK ACTIONS ================= */}
+                <section className="mt-6 border border-slate-200 bg-white">
+                    <div className="border-b border-slate-100 px-5 py-4">
+                        <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-fuchsia-600">
+                                ::
+                            </span>
+
+                            <h2 className="font-mono text-sm font-bold text-slate-900">
+                                quick-actions
+                            </h2>
+                        </div>
+
+                        <p className="mt-1 font-mono text-[10px] text-slate-400">
+                            // common workspace actions
+                        </p>
+                    </div>
+
+                    <div className="grid divide-y divide-slate-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+                        <Link
+                            href="/projects"
+                            className="group flex items-center justify-between px-5 py-4 transition hover:bg-pink-50/40"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-md border border-fuchsia-100 bg-fuchsia-50 font-mono text-xs font-bold text-fuchsia-600">
+                                    +
+                                </div>
+
+                                <div>
+                                    <p className="text-sm font-semibold text-slate-800 transition group-hover:text-fuchsia-700">
+                                        Create project
+                                    </p>
+
+                                    <p className="mt-0.5 text-xs text-slate-400">
+                                        Start a new workspace
+                                    </p>
+                                </div>
+                            </div>
+
+                            <span className="font-mono text-xs text-slate-300 transition group-hover:text-fuchsia-500">
+                                →
+                            </span>
+                        </Link>
+
+                        <Link
+                            href="/projects"
+                            className="group flex items-center justify-between px-5 py-4 transition hover:bg-pink-50/40"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-slate-50 font-mono text-xs font-bold text-slate-500">
+                                    #
+                                </div>
+
+                                <div>
+                                    <p className="text-sm font-semibold text-slate-800 transition group-hover:text-fuchsia-700">
+                                        View projects
+                                    </p>
+
+                                    <p className="mt-0.5 text-xs text-slate-400">
+                                        Browse your projects
+                                    </p>
+                                </div>
+                            </div>
+
+                            <span className="font-mono text-xs text-slate-300 transition group-hover:text-fuchsia-500">
+                                →
+                            </span>
+                        </Link>
+                    </div>
+                </section>
 
                 {/* ================= WORKSPACE INFO ================= */}
                 <section className="mt-6 border border-slate-200 bg-white">
@@ -359,38 +759,37 @@ export default function DashboardPage() {
                             </div>
                         </div>
 
-                        {/* Status */}
+                        {/* Dashboard status */}
                         <div className="border-b border-slate-100 p-5 lg:border-r lg:border-b-0">
                             <p className="font-mono text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                system-status
+                                dashboard-status
                             </p>
 
                             <div className="mt-3 flex items-center gap-2">
                                 <span className="h-2 w-2 rounded-full bg-emerald-500" />
 
                                 <span className="font-mono text-xs font-bold text-emerald-600">
-                                    operational
+                                    synced
                                 </span>
                             </div>
 
                             <p className="mt-2 text-xs text-slate-400">
-                                All workspace services are
-                                available.
+                                Dashboard data loaded from API.
                             </p>
                         </div>
 
-                        {/* Version */}
+                        {/* Environment */}
                         <div className="p-5">
                             <p className="font-mono text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                 environment
                             </p>
 
                             <p className="mt-3 font-mono text-sm font-bold text-slate-800">
-                                production-ready
+                                taskflow-api
                             </p>
 
                             <p className="mt-2 text-xs text-slate-400">
-                                TaskFlow workspace
+                                Connected to PostgreSQL.
                             </p>
                         </div>
                     </div>

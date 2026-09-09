@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -72,6 +72,46 @@ export class NotificationsService {
                 total,
                 totalPages: Math.ceil(total / limit),
             },
+        };
+    }
+
+    async markAsRead(
+        id: string,
+        userId: string,
+    ): Promise<Notification> {
+        const notification = await this.notificationRepository.findOne({
+            where: {
+                id,
+                userId,
+            },
+        });
+
+        if (!notification) {
+            throw new NotFoundException('Notification not found');
+        }
+
+        if (!notification.isRead) {
+            notification.isRead = true;
+
+            await this.notificationRepository.save(notification);
+        }
+
+        return notification;
+    }
+
+    async markAllAsRead(userId: string): Promise<{ message: string }> {
+        await this.notificationRepository.update(
+            {
+                userId,
+                isRead: false,
+            },
+            {
+                isRead: true,
+            },
+        );
+
+        return {
+            message: 'All notifications marked as read',
         };
     }
 }
