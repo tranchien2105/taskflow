@@ -4,33 +4,57 @@ import {
   Get,
   Param,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 
 import { TaskLabelsService } from './task-labels.service';
 
 import { TaskProjectManagerGuard } from '../task-project-manager/task-project-manager.guard';
+
 import { TaskProjectMemberGuard } from '../task-project-member/task-project-member.guard';
 
 @Controller('tasks/:taskId/labels')
 export class TaskLabelsController {
-  constructor(private readonly taskLabelsService: TaskLabelsService) {}
+  constructor(
+    private readonly taskLabelsService: TaskLabelsService,
+  ) { }
 
   @Post(':labelId')
   @UseGuards(TaskProjectManagerGuard)
-  attach(@Param('taskId') taskId: string, @Param('labelId') labelId: string) {
-    return this.taskLabelsService.attach(taskId, labelId);
+  attach(
+    @Param('taskId') taskId: string,
+    @Param('labelId') labelId: string,
+    @Req() req: any,
+  ) {
+    return this.taskLabelsService.attach(
+      taskId,
+      labelId,
+      req.user.id,
+    );
   }
 
   @Get()
   @UseGuards(TaskProjectMemberGuard)
-  findAll(@Param('taskId') taskId: string) {
-    return this.taskLabelsService.findAll(taskId);
+  findAll(
+    @Param('taskId') taskId: string,
+  ) {
+    return this.taskLabelsService.findAll(
+      taskId,
+    );
   }
 
   @Delete(':labelId')
   @UseGuards(TaskProjectManagerGuard)
-  remove(@Param('taskId') taskId: string, @Param('labelId') labelId: string) {
-    return this.taskLabelsService.remove(taskId, labelId);
+  remove(
+    @Param('taskId') taskId: string,
+    @Param('labelId') labelId: string,
+    @Req() req: any,
+  ) {
+    return this.taskLabelsService.remove(
+      taskId,
+      labelId,
+      req.user.id,
+    );
   }
 }

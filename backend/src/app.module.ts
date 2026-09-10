@@ -20,6 +20,8 @@ import { PresenceModule } from './presence/presence.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { MailModule } from './mail/mail.module';
+import { QueuesModule } from './queues/queues.module';
+import { ActivitiesModule } from './activities/activities.module';
 
 @Module({
   imports: [
@@ -65,6 +67,10 @@ import { MailModule } from './mail/mail.module';
     DashboardModule,
 
     MailModule,
+
+    QueuesModule,
+
+    ActivitiesModule,
   ],
 
   controllers: [AppController],

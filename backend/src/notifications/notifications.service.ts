@@ -19,24 +19,22 @@ export class NotificationsService {
     async create(
         createNotificationDto: CreateNotificationDto,
     ): Promise<Notification> {
-        const notification = this.notificationRepository.create({
-            userId: createNotificationDto.userId,
-            type: createNotificationDto.type,
-            title: createNotificationDto.title,
-            message: createNotificationDto.message,
-            entityType: createNotificationDto.entityType ?? null,
-            entityId: createNotificationDto.entityId ?? null,
-        });
+        const notification =
+            this.notificationRepository.create({
+                userId: createNotificationDto.userId,
+                type: createNotificationDto.type,
+                title: createNotificationDto.title,
+                message: createNotificationDto.message,
+                entityType:
+                    createNotificationDto.entityType ?? null,
+                entityId:
+                    createNotificationDto.entityId ?? null,
+            });
 
         const savedNotification =
-            await this.notificationRepository.save(notification);
-
-        console.log('NOTIFICATION DEBUG:', {
-            notificationId: savedNotification.id,
-            userId: savedNotification.userId,
-            type: savedNotification.type,
-            entityId: savedNotification.entityId,
-        });
+            await this.notificationRepository.save(
+                notification,
+            );
 
         this.notificationsGateway.emitNotification(
             savedNotification.userId,
@@ -70,7 +68,9 @@ export class NotificationsService {
                 page,
                 limit,
                 total,
-                totalPages: Math.ceil(total / limit),
+                totalPages: Math.ceil(
+                    total / limit,
+                ),
             },
         };
     }
@@ -79,27 +79,34 @@ export class NotificationsService {
         id: string,
         userId: string,
     ): Promise<Notification> {
-        const notification = await this.notificationRepository.findOne({
-            where: {
-                id,
-                userId,
-            },
-        });
+        const notification =
+            await this.notificationRepository.findOne({
+                where: {
+                    id,
+                    userId,
+                },
+            });
 
         if (!notification) {
-            throw new NotFoundException('Notification not found');
+            throw new NotFoundException(
+                'Notification not found',
+            );
         }
 
         if (!notification.isRead) {
             notification.isRead = true;
 
-            await this.notificationRepository.save(notification);
+            await this.notificationRepository.save(
+                notification,
+            );
         }
 
         return notification;
     }
 
-    async markAllAsRead(userId: string): Promise<{ message: string }> {
+    async markAllAsRead(
+        userId: string,
+    ): Promise<{ message: string }> {
         await this.notificationRepository.update(
             {
                 userId,
@@ -111,7 +118,8 @@ export class NotificationsService {
         );
 
         return {
-            message: 'All notifications marked as read',
+            message:
+                'All notifications marked as read',
         };
     }
 }

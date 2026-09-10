@@ -21,35 +21,66 @@ import type { AuthenticatedRequest } from '../common/interfaces/authenticated-re
 
 @Controller('projects')
 export class ProjectsController {
-  constructor(private readonly projectsService: ProjectsService) { }
+  constructor(
+    private readonly projectsService: ProjectsService,
+  ) { }
 
   @Post()
   create(
     @Body() createProjectDto: CreateProjectDto,
     @Req() req: AuthenticatedRequest,
   ) {
-    return this.projectsService.create(createProjectDto, req.user.userId);
+    return this.projectsService.create(
+      createProjectDto,
+      req.user.userId,
+    );
   }
 
   @Get()
-  findAll(@Query() query: QueryProjectDto, @Req() req: AuthenticatedRequest) {
-    return this.projectsService.findAll(query, req.user.userId);
+  findAll(
+    @Query() query: QueryProjectDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.projectsService.findAll(
+      query,
+      req.user.userId,
+    );
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @Req() req: AuthenticatedRequest) {
-    return this.projectsService.findOne(id, req.user.userId);
+  findOne(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.projectsService.findOne(
+      id,
+      req.user.userId,
+    );
   }
 
   @Patch(':id')
   @UseGuards(ProjectManagerGuard)
-  update(@Param('id') id: string, @Body() updateProjectDto: UpdateProjectDto) {
-    return this.projectsService.update(id, updateProjectDto);
+  update(
+    @Param('id') id: string,
+    @Body() updateProjectDto: UpdateProjectDto,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.projectsService.update(
+      id,
+      updateProjectDto,
+      req.user.userId,
+    );
   }
 
   @Delete(':id')
   @UseGuards(ProjectManagerGuard)
-  remove(@Param('id') id: string) {
-    return this.projectsService.remove(id);
+  remove(
+    @Param('id') id: string,
+    @Req() req: AuthenticatedRequest,
+  ) {
+    return this.projectsService.remove(
+      id,
+      req.user.userId,
+    );
   }
 }

@@ -5,7 +5,11 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import {
+  Repository,
+  DataSource,
+} from 'typeorm';
+
 import { User } from '../users/entities/user.entity';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { Project } from './entities/project.entity';
@@ -14,6 +18,7 @@ import { UpdateProjectDto } from './dto/update-project.dto';
 import { ProjectMembersService } from '../project-members/project-members.service';
 import { ProjectMemberRole } from '../project-members/entities/project-member.entity';
 import { SortOrder } from './dto/query-project.dto';
+import { ActivitiesService } from '../activities/activities.service';
 
 @Injectable()
 export class ProjectsService {
@@ -27,9 +32,14 @@ export class ProjectsService {
     private readonly usersRepository: Repository<User>,
 
     private readonly dataSource: DataSource,
+
+    private readonly activitiesService: ActivitiesService,
   ) { }
 
-  async create(createProjectDto: CreateProjectDto, ownerId: string) {
+  async create(
+    createProjectDto: CreateProjectDto,
+    ownerId: string,
+  ) {
     const owner = await this.usersRepository.findOne({
       where: {
         id: ownerId,
@@ -37,49 +47,76 @@ export class ProjectsService {
     });
 
     if (!owner) {
-      throw new NotFoundException('Owner not found');
+      throw new NotFoundException(
+        'Owner not found',
+      );
     }
 
-    const existingProject = await this.projectsRepository.findOne({
-      where: {
-        slug: createProjectDto.slug,
-      },
-    });
-
-    if (existingProject) {
-      throw new ConflictException('Project slug already exists');
-    }
-
-    return this.dataSource.transaction(async (manager) => {
-      const projectRepository = manager.getRepository(Project);
-
-      const project = projectRepository.create({
-        name: createProjectDto.name,
-        slug: createProjectDto.slug,
-        description: createProjectDto.description ?? null,
-        status: createProjectDto.status,
-        priority: createProjectDto.priority,
-        startDate: createProjectDto.startDate ?? null,
-        dueDate: createProjectDto.dueDate ?? null,
-        ownerId: owner.id,
+    const existingProject =
+      await this.projectsRepository.findOne({
+        where: {
+          slug: createProjectDto.slug,
+        },
       });
 
-      const savedProject = await projectRepository.save(project);
-
-      await this.projectMembersService.create(
-        savedProject.id,
-        {
-          userId: owner.id,
-        },
-        ProjectMemberRole.MANAGER,
-        manager,
+    if (existingProject) {
+      throw new ConflictException(
+        'Project slug already exists',
       );
+    }
 
-      return savedProject;
-    });
+    return this.dataSource.transaction(
+      async (manager) => {
+        const projectRepository =
+          manager.getRepository(Project);
+
+        const project =
+          projectRepository.create({
+            name: createProjectDto.name,
+            slug: createProjectDto.slug,
+            description:
+              createProjectDto.description ?? null,
+            status: createProjectDto.status,
+            priority: createProjectDto.priority,
+            startDate:
+              createProjectDto.startDate ?? null,
+            dueDate:
+              createProjectDto.dueDate ?? null,
+            ownerId: owner.id,
+          });
+
+        const savedProject =
+          await projectRepository.save(project);
+
+        await this.projectMembersService.create(
+          savedProject.id,
+          {
+            userId: owner.id,
+          },
+          ProjectMemberRole.MANAGER,
+          manager,
+        );
+
+        // Record activity inside transaction
+        await this.activitiesService.create(
+          {
+            userId: ownerId,
+            action: 'PROJECT_CREATED',
+            entity: savedProject,
+            entityType: 'project',
+          },
+          manager,
+        );
+
+        return savedProject;
+      },
+    );
   }
 
-  async findAll(query: QueryProjectDto, userId: string) {
+  async findAll(
+    query: QueryProjectDto,
+    userId: string,
+  ) {
     const {
       page = 1,
       limit = 10,
@@ -90,15 +127,24 @@ export class ProjectsService {
       sortOrder = 'DESC',
     } = query;
 
-    const queryBuilder = this.projectsRepository
-      .createQueryBuilder('project')
-      .leftJoinAndSelect('project.owner', 'owner')
-      .innerJoin(
-        'project_members',
-        'projectMember',
-        'projectMember.project_id = project.id',
-      )
-      .andWhere('projectMember.user_id = :userId', { userId });
+    const queryBuilder =
+      this.projectsRepository
+        .createQueryBuilder('project')
+        .leftJoinAndSelect(
+          'project.owner',
+          'owner',
+        )
+        .innerJoin(
+          'project_members',
+          'projectMember',
+          'projectMember.project_id = project.id',
+        )
+        .andWhere(
+          'projectMember.user_id = :userId',
+          {
+            userId,
+          },
+        );
 
     if (search) {
       queryBuilder.andWhere(
@@ -110,32 +156,50 @@ export class ProjectsService {
     }
 
     if (status) {
-      queryBuilder.andWhere('project.status = :status', {
-        status,
-      });
+      queryBuilder.andWhere(
+        'project.status = :status',
+        {
+          status,
+        },
+      );
     }
 
     if (priority) {
-      queryBuilder.andWhere('project.priority = :priority', {
-        priority,
-      });
+      queryBuilder.andWhere(
+        'project.priority = :priority',
+        {
+          priority,
+        },
+      );
     }
 
-    const allowedSortFields = ['createdAt', 'updatedAt', 'name', 'dueDate'];
+    const allowedSortFields = [
+      'createdAt',
+      'updatedAt',
+      'name',
+      'dueDate',
+    ];
 
-    const safeSortBy = allowedSortFields.includes(sortBy)
-      ? sortBy
-      : 'createdAt';
+    const safeSortBy =
+      allowedSortFields.includes(sortBy)
+        ? sortBy
+        : 'createdAt';
 
     const safeSortOrder =
-      sortOrder === SortOrder.ASC ? SortOrder.ASC : SortOrder.DESC;
+      sortOrder === SortOrder.ASC
+        ? SortOrder.ASC
+        : SortOrder.DESC;
 
-    queryBuilder.orderBy(`project.${safeSortBy}`, safeSortOrder);
+    queryBuilder.orderBy(
+      `project.${safeSortBy}`,
+      safeSortOrder,
+    );
 
-    const [data, total] = await queryBuilder
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getManyAndCount();
+    const [data, total] =
+      await queryBuilder
+        .skip((page - 1) * limit)
+        .take(limit)
+        .getManyAndCount();
 
     return {
       data,
@@ -143,71 +207,131 @@ export class ProjectsService {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(
+          total / limit,
+        ),
       },
     };
   }
 
-  async findOne(id: string, userId: string) {
-    const project = await this.projectsRepository.findOne({
-      where: { id },
-      relations: {
-        owner: true,
-      },
-    });
+  async findOne(
+    id: string,
+    userId: string,
+  ) {
+    const project =
+      await this.projectsRepository.findOne({
+        where: { id },
+        relations: {
+          owner: true,
+        },
+      });
 
     if (!project) {
-      throw new NotFoundException('Project not found');
+      throw new NotFoundException(
+        'Project not found',
+      );
     }
 
-    const isMember = await this.projectMembersService.isMember(id, userId);
+    const isMember =
+      await this.projectMembersService.isMember(
+        id,
+        userId,
+      );
 
     if (!isMember) {
-      throw new ForbiddenException('You do not have access to this project');
+      throw new ForbiddenException(
+        'You do not have access to this project',
+      );
     }
 
     return project;
   }
 
-  async update(id: string, updateProjectDto: UpdateProjectDto) {
-    const project = await this.projectsRepository.findOne({
-      where: { id },
-    });
-
-    if (!project) {
-      throw new NotFoundException('Project not found');
-    }
-
-    if (updateProjectDto.slug && updateProjectDto.slug !== project.slug) {
-      const existingProject = await this.projectsRepository.findOne({
-        where: {
-          slug: updateProjectDto.slug,
-        },
+  async update(
+    id: string,
+    updateProjectDto: UpdateProjectDto,
+    userId: string,
+  ) {
+    const project =
+      await this.projectsRepository.findOne({
+        where: { id },
       });
 
+    if (!project) {
+      throw new NotFoundException(
+        'Project not found',
+      );
+    }
+
+    if (
+      updateProjectDto.slug &&
+      updateProjectDto.slug !== project.slug
+    ) {
+      const existingProject =
+        await this.projectsRepository.findOne({
+          where: {
+            slug: updateProjectDto.slug,
+          },
+        });
+
       if (existingProject) {
-        throw new ConflictException('Project slug already exists');
+        throw new ConflictException(
+          'Project slug already exists',
+        );
       }
     }
 
-    Object.assign(project, updateProjectDto);
+    Object.assign(
+      project,
+      updateProjectDto,
+    );
 
-    return this.projectsRepository.save(project);
-  }
+    const updatedProject =
+      await this.projectsRepository.save(
+        project,
+      );
 
-  async remove(id: string) {
-    const project = await this.projectsRepository.findOne({
-      where: { id },
+    // Record activity
+    await this.activitiesService.create({
+      userId,
+      action: 'PROJECT_UPDATED',
+      entity: updatedProject,
+      entityType: 'project',
     });
 
+    return updatedProject;
+  }
+
+  async remove(
+    id: string,
+    userId: string,
+  ) {
+    const project =
+      await this.projectsRepository.findOne({
+        where: { id },
+      });
+
     if (!project) {
-      throw new NotFoundException('Project not found');
+      throw new NotFoundException(
+        'Project not found',
+      );
     }
 
-    await this.projectsRepository.remove(project);
+    await this.projectsRepository.remove(
+      project,
+    );
+
+    // Record activity
+    await this.activitiesService.create({
+      userId,
+      action: 'PROJECT_DELETED',
+      entity: project,
+      entityType: 'project',
+    });
 
     return {
-      message: 'Project deleted successfully',
+      message:
+        'Project deleted successfully',
     };
   }
 }

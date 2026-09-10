@@ -14,17 +14,29 @@ import { ProjectManagerGuard } from '../project-manager/project-manager.guard';
 
 import { ProjectInvitationsModule } from '../project-invitations/project-invitations.module';
 
+import { ActivitiesModule } from '../activities/activities.module';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([ProjectMember]),
 
     forwardRef(() => ProjectInvitationsModule),
+
+    ActivitiesModule,
   ],
 
-  controllers: [ProjectMembersController],
+  controllers: [
+    ProjectMembersController,
+  ],
 
-  providers: [ProjectMembersService, ProjectAccessGuard, ProjectManagerGuard],
+  providers: [
+    ProjectMembersService,
+    ProjectAccessGuard,
+    ProjectManagerGuard,
+  ],
 
-  exports: [ProjectMembersService],
+  exports: [
+    ProjectMembersService,
+  ],
 })
-export class ProjectMembersModule {}
+export class ProjectMembersModule { }

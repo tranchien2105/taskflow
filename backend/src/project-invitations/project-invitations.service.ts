@@ -20,7 +20,11 @@ import { ProjectMembersService } from '../project-members/project-members.servic
 
 import { ProjectInvitationsGateway } from './project-invitations.gateway';
 
-import { MailService } from '../mail/mail.service';
+import { InjectQueue } from '@nestjs/bullmq';
+
+import { Queue } from 'bullmq';
+
+import { ActivitiesService } from '../activities/activities.service';
 
 @Injectable()
 export class ProjectInvitationsService {
@@ -33,7 +37,10 @@ export class ProjectInvitationsService {
 
     private readonly gateway: ProjectInvitationsGateway,
 
-    private readonly mailService: MailService,
+    @InjectQueue('project-invitation-email')
+    private readonly invitationEmailQueue: Queue,
+
+    private readonly activitiesService: ActivitiesService,
   ) { }
 
   async createInvitation(
@@ -62,15 +69,29 @@ export class ProjectInvitationsService {
     /**
      * Create invitation
      */
-    const invitation = this.invitationRepository.create({
-      projectId,
-      invitedUserId,
-      invitedByUserId,
-      status: ProjectInvitationStatus.PENDING,
-    });
+    const invitation =
+      this.invitationRepository.create({
+        projectId,
+        invitedUserId,
+        invitedByUserId,
+        status: ProjectInvitationStatus.PENDING,
+      });
 
     const savedInvitation =
-      await this.invitationRepository.save(invitation);
+      await this.invitationRepository.save(
+        invitation,
+      );
+
+    /**
+     * Record activity
+     */
+    await this.activitiesService.create({
+      userId: invitedByUserId,
+      action: 'PROJECT_INVITATION_CREATED',
+      entity: savedInvitation,
+      projectId,
+      entityType: 'project',
+    });
 
     /**
      * Load project + invited user + inviter
@@ -111,13 +132,33 @@ export class ProjectInvitationsService {
       invitationWithRelations,
     );
 
-    /** * Send project invitation email */
-    await this.mailService.sendProjectInvitationEmail({
-      invitedUserEmail: invitationWithRelations.invitedUser.email,
-      invitedUserName: invitationWithRelations.invitedUser.name,
-      inviterName: invitationWithRelations.invitedBy.name,
-      projectName: invitationWithRelations.project.name,
-    });
+    /**
+     * Add project invitation email to queue
+     */
+    await this.invitationEmailQueue.add(
+      'send-project-invitation',
+      {
+        invitedUserEmail:
+          invitationWithRelations.invitedUser.email,
+
+        invitedUserName:
+          invitationWithRelations.invitedUser.name,
+
+        inviterName:
+          invitationWithRelations.invitedBy.name,
+
+        projectName:
+          invitationWithRelations.project.name,
+      },
+      {
+        attempts: 3,
+
+        backoff: {
+          type: 'exponential',
+          delay: 3000,
+        },
+      },
+    );
 
     return invitationWithRelations;
   }
@@ -185,9 +226,23 @@ export class ProjectInvitationsService {
     invitation.status =
       ProjectInvitationStatus.ACCEPTED;
 
-    return this.invitationRepository.save(
-      invitation,
-    );
+    const acceptedInvitation =
+      await this.invitationRepository.save(
+        invitation,
+      );
+
+    /**
+     * Record activity
+     */
+    await this.activitiesService.create({
+      userId,
+      action: 'PROJECT_INVITATION_ACCEPTED',
+      entity: acceptedInvitation,
+      projectId: invitation.projectId,
+      entityType: 'project',
+    });
+
+    return acceptedInvitation;
   }
 
   async rejectInvitation(
@@ -231,9 +286,23 @@ export class ProjectInvitationsService {
     invitation.status =
       ProjectInvitationStatus.REJECTED;
 
-    return this.invitationRepository.save(
-      invitation,
-    );
+    const rejectedInvitation =
+      await this.invitationRepository.save(
+        invitation,
+      );
+
+    /**
+     * Record activity
+     */
+    await this.activitiesService.create({
+      userId,
+      action: 'PROJECT_INVITATION_REJECTED',
+      entity: rejectedInvitation,
+      projectId: invitation.projectId,
+      entityType: 'project',
+    });
+
+    return rejectedInvitation;
   }
 
   async findMyInvitations(

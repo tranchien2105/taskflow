@@ -15,6 +15,7 @@ import { ProjectMembersService } from '../project-members/project-members.servic
 import { ProjectMemberRole } from '../project-members/entities/project-member.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/enums/notification-type.enum';
+import { ActivitiesService } from '../activities/activities.service';
 
 @Injectable()
 export class TasksService {
@@ -25,16 +26,19 @@ export class TasksService {
     private readonly projectMembersService: ProjectMembersService,
 
     private readonly notificationsService: NotificationsService,
+
+    private readonly activitiesService: ActivitiesService,
   ) { }
 
   async create(
     createTaskDto: CreateTaskDto,
     creatorId: string,
   ): Promise<Task> {
-    const isMember = await this.projectMembersService.isMember(
-      createTaskDto.projectId,
-      creatorId,
-    );
+    const isMember =
+      await this.projectMembersService.isMember(
+        createTaskDto.projectId,
+        creatorId,
+      );
 
     if (!isMember) {
       throw new ForbiddenException(
@@ -61,17 +65,36 @@ export class TasksService {
       creatorId,
     });
 
-    const createdTask = await this.taskRepository.save(task);
+    const createdTask =
+      await this.taskRepository.save(task);
+
+    // Record activity
+    await this.activitiesService.create({
+      userId: creatorId,
+      action: 'TASK_CREATED',
+      entity: createdTask,
+      entityType: 'task',
+    });
 
     // Notify assignee when task is created with an assignee
     if (createdTask.assigneeId) {
       await this.notifyTaskAssigned(createdTask);
+
+      await this.activitiesService.create({
+        userId: creatorId,
+        action: 'TASK_ASSIGNED',
+        entity: createdTask,
+        entityType: 'task',
+      });
     }
 
     return createdTask;
   }
 
-  async findAll(query: TaskQueryDto, userId: string) {
+  async findAll(
+    query: TaskQueryDto,
+    userId: string,
+  ) {
     const {
       page = 1,
       limit = 10,
@@ -94,9 +117,12 @@ export class TasksService {
         'projectMember',
         'projectMember.project_id = task.project_id',
       )
-      .andWhere('projectMember.user_id = :userId', {
-        userId,
-      });
+      .andWhere(
+        'projectMember.user_id = :userId',
+        {
+          userId,
+        },
+      );
 
     if (search) {
       queryBuilder.andWhere(
@@ -108,27 +134,39 @@ export class TasksService {
     }
 
     if (status) {
-      queryBuilder.andWhere('task.status = :status', {
-        status,
-      });
+      queryBuilder.andWhere(
+        'task.status = :status',
+        {
+          status,
+        },
+      );
     }
 
     if (priority) {
-      queryBuilder.andWhere('task.priority = :priority', {
-        priority,
-      });
+      queryBuilder.andWhere(
+        'task.priority = :priority',
+        {
+          priority,
+        },
+      );
     }
 
     if (projectId) {
-      queryBuilder.andWhere('task.projectId = :projectId', {
-        projectId,
-      });
+      queryBuilder.andWhere(
+        'task.projectId = :projectId',
+        {
+          projectId,
+        },
+      );
     }
 
     if (assigneeId) {
-      queryBuilder.andWhere('task.assigneeId = :assigneeId', {
-        assigneeId,
-      });
+      queryBuilder.andWhere(
+        'task.assigneeId = :assigneeId',
+        {
+          assigneeId,
+        },
+      );
     }
 
     const [data, total] = await queryBuilder
@@ -143,7 +181,9 @@ export class TasksService {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(
+          total / limit,
+        ),
       },
     };
   }
@@ -152,7 +192,8 @@ export class TasksService {
     id: string,
     userId: string,
   ): Promise<Task> {
-    const task = await this.findOneWithoutAuth(id);
+    const task =
+      await this.findOneWithoutAuth(id);
 
     const isMember =
       await this.projectMembersService.isMember(
@@ -174,12 +215,14 @@ export class TasksService {
     updateTaskDto: UpdateTaskDto,
     userId: string,
   ): Promise<Task> {
-    const task = await this.findOne(id, userId);
+    const task =
+      await this.findOne(id, userId);
 
-    const role = await this.projectMembersService.getRole(
-      task.projectId,
-      userId,
-    );
+    const role =
+      await this.projectMembersService.getRole(
+        task.projectId,
+        userId,
+      );
 
     // Only Manager can change task assignee
     if (
@@ -191,7 +234,8 @@ export class TasksService {
       );
     }
 
-    const newAssigneeId = updateTaskDto.assigneeId;
+    const newAssigneeId =
+      updateTaskDto.assigneeId;
 
     // Assignee must be a member of the project
     // null means unassign
@@ -212,12 +256,24 @@ export class TasksService {
       }
     }
 
-    const previousAssigneeId = task.assigneeId;
+    const previousAssigneeId =
+      task.assigneeId;
 
-    Object.assign(task, updateTaskDto);
+    Object.assign(
+      task,
+      updateTaskDto,
+    );
 
     const updatedTask =
       await this.taskRepository.save(task);
+
+    // Record general task update
+    await this.activitiesService.create({
+      userId,
+      action: 'TASK_UPDATED',
+      entity: updatedTask,
+      entityType: 'task',
+    });
 
     // Assignee changed
     if (
@@ -230,11 +286,27 @@ export class TasksService {
           updatedTask,
           previousAssigneeId,
         );
+
+        await this.activitiesService.create({
+          userId,
+          action: 'TASK_UNASSIGNED',
+          entity: updatedTask,
+          entityType: 'task',
+        });
       }
 
       // Notify new assignee
       if (newAssigneeId) {
-        await this.notifyTaskAssigned(updatedTask);
+        await this.notifyTaskAssigned(
+          updatedTask,
+        );
+
+        await this.activitiesService.create({
+          userId,
+          action: 'TASK_ASSIGNED',
+          entity: updatedTask,
+          entityType: 'task',
+        });
       }
     }
 
@@ -245,9 +317,17 @@ export class TasksService {
     id: string,
     userId: string,
   ): Promise<{ message: string }> {
-    const task = await this.findOne(id, userId);
+    const task =
+      await this.findOne(id, userId);
 
     await this.taskRepository.remove(task);
+
+    await this.activitiesService.create({
+      userId,
+      action: 'TASK_DELETED',
+      entity: task,
+      entityType: 'task',
+    });
 
     return {
       message: 'Task deleted successfully',
@@ -257,17 +337,20 @@ export class TasksService {
   async findOneWithoutAuth(
     id: string,
   ): Promise<Task> {
-    const task = await this.taskRepository.findOne({
-      where: { id },
-      relations: {
-        project: true,
-        creator: true,
-        assignee: true,
-      },
-    });
+    const task =
+      await this.taskRepository.findOne({
+        where: { id },
+        relations: {
+          project: true,
+          creator: true,
+          assignee: true,
+        },
+      });
 
     if (!task) {
-      throw new NotFoundException('Task not found');
+      throw new NotFoundException(
+        'Task not found',
+      );
     }
 
     return task;

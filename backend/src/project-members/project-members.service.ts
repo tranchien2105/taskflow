@@ -7,7 +7,10 @@ import {
 
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { Repository, EntityManager } from 'typeorm';
+import {
+  Repository,
+  EntityManager,
+} from 'typeorm';
 
 import {
   ProjectMember,
@@ -18,6 +21,7 @@ import { CreateProjectMemberDto } from './dto/create-project-member.dto';
 import { UpdateProjectMemberDto } from './dto/update-project-member.dto';
 
 import { ProjectInvitationsService } from '../project-invitations/project-invitations.service';
+import { ActivitiesService } from '../activities/activities.service';
 
 @Injectable()
 export class ProjectMembersService {
@@ -26,7 +30,9 @@ export class ProjectMembersService {
     private readonly projectMemberRepository: Repository<ProjectMember>,
 
     private readonly projectInvitationsService: ProjectInvitationsService,
-  ) {}
+
+    private readonly activitiesService: ActivitiesService,
+  ) { }
 
   /**
    * Thực sự tạo member vào project.
@@ -44,15 +50,18 @@ export class ProjectMembersService {
       ? manager.getRepository(ProjectMember)
       : this.projectMemberRepository;
 
-    const existingMember = await repository.findOne({
-      where: {
-        projectId,
-        userId: createDto.userId,
-      },
-    });
+    const existingMember =
+      await repository.findOne({
+        where: {
+          projectId,
+          userId: createDto.userId,
+        },
+      });
 
     if (existingMember) {
-      throw new ConflictException('User is already a member of this project');
+      throw new ConflictException(
+        'User is already a member of this project',
+      );
     }
 
     const member = repository.create({
@@ -61,20 +70,50 @@ export class ProjectMembersService {
       role,
     });
 
-    const savedMember = await repository.save(member);
+    const savedMember =
+      await repository.save(member);
 
-    const memberWithUser = await repository.findOne({
-      where: {
-        projectId: savedMember.projectId,
-        userId: savedMember.userId,
-      },
-      relations: {
-        user: true,
-      },
-    });
+    const memberWithUser =
+      await repository.findOne({
+        where: {
+          projectId: savedMember.projectId,
+          userId: savedMember.userId,
+        },
+        relations: {
+          user: true,
+        },
+      });
 
     if (!memberWithUser) {
-      throw new NotFoundException('Project member not found after creation');
+      throw new NotFoundException(
+        'Project member not found after creation',
+      );
+    }
+
+    /*
+     * Record activity.
+     *
+     * Chỉ log khi không truyền manager.
+     * Trường hợp Project được tạo:
+     *
+     * Project
+     *   ↓
+     * ProjectMember
+     *   ↓
+     * Activity
+     *
+     * Activity PROJECT_CREATED đã được tạo trong
+     * ProjectsService transaction rồi, nên không tạo
+     * thêm PROJECT_MEMBER_ADDED ở đây để tránh log dư.
+     */
+    if (!manager) {
+      await this.activitiesService.create({
+        userId: createDto.userId,
+        action: 'PROJECT_MEMBER_ADDED',
+        entity: memberWithUser,
+        projectId,
+        entityType: 'project',
+      });
     }
 
     return memberWithUser;
@@ -105,10 +144,16 @@ export class ProjectMembersService {
     invitedByUserId: string,
   ) {
     // Không cho mời người đã là member
-    const isMember = await this.isMember(projectId, invitedUserId);
+    const isMember =
+      await this.isMember(
+        projectId,
+        invitedUserId,
+      );
 
     if (isMember) {
-      throw new ConflictException('User is already a member of this project');
+      throw new ConflictException(
+        'User is already a member of this project',
+      );
     }
 
     return this.projectInvitationsService.createInvitation(
@@ -118,7 +163,9 @@ export class ProjectMembersService {
     );
   }
 
-  async findAll(projectId: string): Promise<ProjectMember[]> {
+  async findAll(
+    projectId: string,
+  ): Promise<ProjectMember[]> {
     return this.projectMemberRepository.find({
       where: {
         projectId,
@@ -132,20 +179,26 @@ export class ProjectMembersService {
     });
   }
 
-  async findOne(projectId: string, userId: string): Promise<ProjectMember> {
-    const member = await this.projectMemberRepository.findOne({
-      where: {
-        projectId,
-        userId,
-      },
-      relations: {
-        user: true,
-        project: true,
-      },
-    });
+  async findOne(
+    projectId: string,
+    userId: string,
+  ): Promise<ProjectMember> {
+    const member =
+      await this.projectMemberRepository.findOne({
+        where: {
+          projectId,
+          userId,
+        },
+        relations: {
+          user: true,
+          project: true,
+        },
+      });
 
     if (!member) {
-      throw new NotFoundException('Project member not found');
+      throw new NotFoundException(
+        'Project member not found',
+      );
     }
 
     return member;
@@ -156,36 +209,84 @@ export class ProjectMembersService {
     userId: string,
     updateDto: UpdateProjectMemberDto,
   ): Promise<ProjectMember> {
-    const member = await this.findOne(projectId, userId);
+    const member =
+      await this.findOne(
+        projectId,
+        userId,
+      );
 
-    if (member.role === ProjectMemberRole.MANAGER) {
+    if (
+      member.role === ProjectMemberRole.MANAGER
+    ) {
       throw new ForbiddenException(
         'Cannot change the role of a project manager',
       );
     }
 
+    const previousRole = member.role;
+
     member.role = updateDto.role;
 
-    return this.projectMemberRepository.save(member);
+    const updatedMember =
+      await this.projectMemberRepository.save(
+        member,
+      );
+
+    // Record activity
+    await this.activitiesService.create({
+      userId,
+      action: 'PROJECT_MEMBER_ROLE_UPDATED',
+      entity: updatedMember,
+      projectId,
+      entityType: 'project',
+    });
+
+    return updatedMember;
   }
 
-  async remove(projectId: string, userId: string): Promise<void> {
-    const member = await this.findOne(projectId, userId);
-
-    if (member.role === ProjectMemberRole.MANAGER) {
-      throw new ForbiddenException('Cannot remove a project manager');
-    }
-
-    await this.projectMemberRepository.remove(member);
-  }
-
-  async isMember(projectId: string, userId: string): Promise<boolean> {
-    const member = await this.projectMemberRepository.findOne({
-      where: {
+  async remove(
+    projectId: string,
+    userId: string,
+  ): Promise<void> {
+    const member =
+      await this.findOne(
         projectId,
         userId,
-      },
+      );
+
+    if (
+      member.role === ProjectMemberRole.MANAGER
+    ) {
+      throw new ForbiddenException(
+        'Cannot remove a project manager',
+      );
+    }
+
+    await this.projectMemberRepository.remove(
+      member,
+    );
+
+    // Record activity
+    await this.activitiesService.create({
+      userId,
+      action: 'PROJECT_MEMBER_REMOVED',
+      entity: member,
+      projectId,
+      entityType: 'project',
     });
+  }
+
+  async isMember(
+    projectId: string,
+    userId: string,
+  ): Promise<boolean> {
+    const member =
+      await this.projectMemberRepository.findOne({
+        where: {
+          projectId,
+          userId,
+        },
+      });
 
     return !!member;
   }
@@ -194,24 +295,29 @@ export class ProjectMembersService {
     projectId: string,
     userId: string,
   ): Promise<ProjectMemberRole | null> {
-    const member = await this.projectMemberRepository.findOne({
-      where: {
-        projectId,
-        userId,
-      },
-    });
+    const member =
+      await this.projectMemberRepository.findOne({
+        where: {
+          projectId,
+          userId,
+        },
+      });
 
     return member?.role ?? null;
   }
 
-  async isManager(projectId: string, userId: string): Promise<boolean> {
-    const member = await this.projectMemberRepository.findOne({
-      where: {
-        projectId,
-        userId,
-        role: ProjectMemberRole.MANAGER,
-      },
-    });
+  async isManager(
+    projectId: string,
+    userId: string,
+  ): Promise<boolean> {
+    const member =
+      await this.projectMemberRepository.findOne({
+        where: {
+          projectId,
+          userId,
+          role: ProjectMemberRole.MANAGER,
+        },
+      });
 
     return !!member;
   }

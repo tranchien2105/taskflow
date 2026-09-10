@@ -16,24 +16,42 @@ import { AuthModule } from '../auth/auth.module';
 
 import { MailModule } from '../mail/mail.module';
 
+import { BullModule } from '@nestjs/bullmq';
+
+import { ActivitiesModule } from '../activities/activities.module';
+
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ProjectInvitation]),
+    TypeOrmModule.forFeature([
+      ProjectInvitation,
+    ]),
 
-    forwardRef(() => ProjectMembersModule),
+    BullModule.registerQueue({
+      name: 'project-invitation-email',
+    }),
+
+    forwardRef(
+      () => ProjectMembersModule,
+    ),
 
     AuthModule,
 
     MailModule,
+
+    ActivitiesModule,
   ],
 
-  controllers: [ProjectInvitationsController],
+  controllers: [
+    ProjectInvitationsController,
+  ],
 
   providers: [
     ProjectInvitationsService,
     ProjectInvitationsGateway,
   ],
 
-  exports: [ProjectInvitationsService],
+  exports: [
+    ProjectInvitationsService,
+  ],
 })
 export class ProjectInvitationsModule { }

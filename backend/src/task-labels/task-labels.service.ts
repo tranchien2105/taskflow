@@ -11,6 +11,8 @@ import { TaskLabel } from './entities/task-label.entity';
 import { Task } from '../tasks/entities/task.entity';
 import { Label } from '../labels/entities/label.entity';
 
+import { ActivitiesService } from '../activities/activities.service';
+
 @Injectable()
 export class TaskLabelsService {
   constructor(
@@ -22,63 +24,104 @@ export class TaskLabelsService {
 
     @InjectRepository(Label)
     private readonly labelRepository: Repository<Label>,
-  ) {}
 
-  async attach(taskId: string, labelId: string): Promise<TaskLabel> {
-    const task = await this.taskRepository.findOne({
-      where: {
-        id: taskId,
-      },
-    });
+    private readonly activitiesService: ActivitiesService,
+  ) { }
+
+  async attach(
+    taskId: string,
+    labelId: string,
+    userId: string,
+  ): Promise<TaskLabel> {
+    const task =
+      await this.taskRepository.findOne({
+        where: {
+          id: taskId,
+        },
+      });
 
     if (!task) {
-      throw new NotFoundException('Task not found');
+      throw new NotFoundException(
+        'Task not found',
+      );
     }
 
-    const label = await this.labelRepository.findOne({
-      where: {
-        id: labelId,
-      },
-    });
+    const label =
+      await this.labelRepository.findOne({
+        where: {
+          id: labelId,
+        },
+      });
 
     if (!label) {
-      throw new NotFoundException('Label not found');
+      throw new NotFoundException(
+        'Label not found',
+      );
     }
 
-    if (label.projectId !== task.projectId) {
-      throw new ConflictException('Label does not belong to the task project');
+    if (
+      label.projectId !== task.projectId
+    ) {
+      throw new ConflictException(
+        'Label does not belong to the task project',
+      );
     }
 
-    const existing = await this.taskLabelRepository.findOne({
-      where: {
-        taskId,
-        labelId,
-      },
-    });
+    const existing =
+      await this.taskLabelRepository.findOne({
+        where: {
+          taskId,
+          labelId,
+        },
+      });
 
     if (existing) {
-      throw new ConflictException('Label is already attached to this task');
+      throw new ConflictException(
+        'Label is already attached to this task',
+      );
     }
 
-    const taskLabel = this.taskLabelRepository.create({
-      taskId,
-      labelId,
+    const taskLabel =
+      this.taskLabelRepository.create({
+        taskId,
+        labelId,
+      });
+
+    const savedTaskLabel =
+      await this.taskLabelRepository.save(
+        taskLabel,
+      );
+
+    const result = await this.findOne(
+      savedTaskLabel.taskId,
+      savedTaskLabel.labelId,
+    );
+
+    // Record activity
+    await this.activitiesService.create({
+      userId,
+      action: 'TASK_LABEL_ATTACHED',
+      entity: task,
+      entityType: 'task',
     });
 
-    const savedTaskLabel = await this.taskLabelRepository.save(taskLabel);
-
-    return this.findOne(savedTaskLabel.taskId, savedTaskLabel.labelId);
+    return result;
   }
 
-  async findAll(taskId: string): Promise<TaskLabel[]> {
-    const task = await this.taskRepository.findOne({
-      where: {
-        id: taskId,
-      },
-    });
+  async findAll(
+    taskId: string,
+  ): Promise<TaskLabel[]> {
+    const task =
+      await this.taskRepository.findOne({
+        where: {
+          id: taskId,
+        },
+      });
 
     if (!task) {
-      throw new NotFoundException('Task not found');
+      throw new NotFoundException(
+        'Task not found',
+      );
     }
 
     return this.taskLabelRepository.find({
@@ -94,44 +137,73 @@ export class TaskLabelsService {
     });
   }
 
-  async remove(taskId: string, labelId: string): Promise<void> {
-    const task = await this.taskRepository.findOne({
-      where: {
-        id: taskId,
-      },
-    });
+  async remove(
+    taskId: string,
+    labelId: string,
+    userId: string,
+  ): Promise<void> {
+    const task =
+      await this.taskRepository.findOne({
+        where: {
+          id: taskId,
+        },
+      });
 
     if (!task) {
-      throw new NotFoundException('Task not found');
+      throw new NotFoundException(
+        'Task not found',
+      );
     }
 
-    const taskLabel = await this.taskLabelRepository.findOne({
-      where: {
-        taskId,
-        labelId,
-      },
-    });
+    const taskLabel =
+      await this.taskLabelRepository.findOne({
+        where: {
+          taskId,
+          labelId,
+        },
+        relations: {
+          label: true,
+        },
+      });
 
     if (!taskLabel) {
-      throw new NotFoundException('Label is not attached to this task');
+      throw new NotFoundException(
+        'Label is not attached to this task',
+      );
     }
 
-    await this.taskLabelRepository.remove(taskLabel);
+    await this.taskLabelRepository.remove(
+      taskLabel,
+    );
+
+    // Record activity
+    await this.activitiesService.create({
+      userId,
+      action: 'TASK_LABEL_REMOVED',
+      entity: task,
+      entityType: 'task',
+    });
   }
 
-  private async findOne(taskId: string, labelId: string): Promise<TaskLabel> {
-    const taskLabel = await this.taskLabelRepository.findOne({
-      where: {
-        taskId,
-        labelId,
-      },
-      relations: {
-        label: true,
-      },
-    });
+  private async findOne(
+    taskId: string,
+    labelId: string,
+  ): Promise<TaskLabel> {
+    const taskLabel =
+      await this.taskLabelRepository.findOne({
+        where: {
+          taskId,
+          labelId,
+        },
+        relations: {
+          label: true,
+        },
+      });
 
     if (!taskLabel) {
-      throw new NotFoundException('Task label not found');
+      throw new NotFoundException(
+        'Task label not found',
+      );
     }
 
     return taskLabel;

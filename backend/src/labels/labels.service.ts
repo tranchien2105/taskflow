@@ -11,23 +11,34 @@ import { Label } from './entities/label.entity';
 import { CreateLabelDto } from './dto/create-label.dto';
 import { UpdateLabelDto } from './dto/update-label.dto';
 
+import { ActivitiesService } from '../activities/activities.service';
+
 @Injectable()
 export class LabelsService {
   constructor(
     @InjectRepository(Label)
     private readonly labelRepository: Repository<Label>,
-  ) {}
 
-  async create(projectId: string, createDto: CreateLabelDto): Promise<Label> {
-    const existingLabel = await this.labelRepository.findOne({
-      where: {
-        projectId,
-        name: createDto.name,
-      },
-    });
+    private readonly activitiesService: ActivitiesService,
+  ) { }
+
+  async create(
+    projectId: string,
+    createDto: CreateLabelDto,
+    userId: string,
+  ): Promise<Label> {
+    const existingLabel =
+      await this.labelRepository.findOne({
+        where: {
+          projectId,
+          name: createDto.name,
+        },
+      });
 
     if (existingLabel) {
-      throw new ConflictException('Label already exists in this project');
+      throw new ConflictException(
+        'Label already exists in this project',
+      );
     }
 
     const label = this.labelRepository.create({
@@ -36,10 +47,24 @@ export class LabelsService {
       color: createDto.color,
     });
 
-    return this.labelRepository.save(label);
+    const savedLabel =
+      await this.labelRepository.save(label);
+
+    // Record activity
+    await this.activitiesService.create({
+      userId,
+      action: 'LABEL_CREATED',
+      entity: savedLabel,
+      projectId,
+      entityType: 'project',
+    });
+
+    return savedLabel;
   }
 
-  async findAll(projectId: string): Promise<Label[]> {
+  async findAll(
+    projectId: string,
+  ): Promise<Label[]> {
     return this.labelRepository.find({
       where: {
         projectId,
@@ -50,16 +75,22 @@ export class LabelsService {
     });
   }
 
-  async findOne(projectId: string, id: string): Promise<Label> {
-    const label = await this.labelRepository.findOne({
-      where: {
-        id,
-        projectId,
-      },
-    });
+  async findOne(
+    projectId: string,
+    id: string,
+  ): Promise<Label> {
+    const label =
+      await this.labelRepository.findOne({
+        where: {
+          id,
+          projectId,
+        },
+      });
 
     if (!label) {
-      throw new NotFoundException('Label not found');
+      throw new NotFoundException(
+        'Label not found',
+      );
     }
 
     return label;
@@ -69,30 +100,77 @@ export class LabelsService {
     projectId: string,
     id: string,
     updateDto: UpdateLabelDto,
+    userId: string,
   ): Promise<Label> {
-    const label = await this.findOne(projectId, id);
+    const label =
+      await this.findOne(
+        projectId,
+        id,
+      );
 
     if (updateDto.name !== undefined) {
-      const existingLabel = await this.labelRepository.findOne({
-        where: {
-          projectId,
-          name: updateDto.name,
-        },
-      });
+      const existingLabel =
+        await this.labelRepository.findOne({
+          where: {
+            projectId,
+            name: updateDto.name,
+          },
+        });
 
-      if (existingLabel && existingLabel.id !== id) {
-        throw new ConflictException('Label already exists in this project');
+      if (
+        existingLabel &&
+        existingLabel.id !== id
+      ) {
+        throw new ConflictException(
+          'Label already exists in this project',
+        );
       }
     }
 
-    Object.assign(label, updateDto);
+    Object.assign(
+      label,
+      updateDto,
+    );
 
-    return this.labelRepository.save(label);
+    const updatedLabel =
+      await this.labelRepository.save(
+        label,
+      );
+
+    // Record activity
+    await this.activitiesService.create({
+      userId,
+      action: 'LABEL_UPDATED',
+      entity: updatedLabel,
+      projectId,
+      entityType: 'project',
+    });
+
+    return updatedLabel;
   }
 
-  async remove(projectId: string, id: string): Promise<void> {
-    const label = await this.findOne(projectId, id);
+  async remove(
+    projectId: string,
+    id: string,
+    userId: string,
+  ): Promise<void> {
+    const label =
+      await this.findOne(
+        projectId,
+        id,
+      );
 
-    await this.labelRepository.remove(label);
+    await this.labelRepository.remove(
+      label,
+    );
+
+    // Record activity
+    await this.activitiesService.create({
+      userId,
+      action: 'LABEL_DELETED',
+      entity: label,
+      projectId,
+      entityType: 'project',
+    });
   }
 }
