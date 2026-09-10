@@ -10,6 +10,7 @@ import {
 import { apiFetch } from '@/lib/api';
 
 type User = {
+    role: string;
     userId: string;
     email: string;
     name: string;

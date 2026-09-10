@@ -1,11 +1,40 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { io, Socket } from 'socket.io-client';
 
 import { useAuth } from '@/contexts/AuthContext';
 import Navbar from '@/components/Navbar';
+
+type OnlineUser = {
+    id: string;
+    name: string;
+    email: string;
+    avatar?: string | null;
+    role?: string;
+};
+
+type RecentActivity = {
+    id: string;
+    userId: string;
+    action: string;
+    entityType: string;
+    entityId: string;
+    metadata: {
+        title?: string;
+        name?: string;
+        [key: string]: unknown;
+    } | null;
+    createdAt: string;
+    user: {
+        id: string;
+        name: string;
+        email: string;
+        avatar?: string | null;
+    } | null;
+};
 
 type DashboardData = {
     overview: {
@@ -34,6 +63,10 @@ type DashboardData = {
         assigned: number;
         completed: number;
     };
+
+    onlineUsers?: OnlineUser[];
+
+    recentActivities?: RecentActivity[];
 };
 
 export default function DashboardPage() {
@@ -49,20 +82,38 @@ export default function DashboardPage() {
     const [dashboardError, setDashboardError] =
         useState<string | null>(null);
 
+    /*
+     * ============================================================
+     * AUTH REDIRECT
+     * ============================================================
+     */
+
     useEffect(() => {
         if (!loading && !user) {
             router.replace('/login');
         }
     }, [loading, user, router]);
 
-    useEffect(() => {
-        if (loading || !user) {
-            return;
-        }
+    /*
+     * ============================================================
+     * LOAD DASHBOARD
+     * ============================================================
+     *
+     * showLoading = true:
+     *   Initial page load -> show loading screen.
+     *
+     * showLoading = false:
+     *   Background refresh -> update data silently.
+     *
+     */
 
-        const loadDashboard = async () => {
+    const loadDashboard = useCallback(
+        async (showLoading = true) => {
             try {
-                setDashboardLoading(true);
+                if (showLoading) {
+                    setDashboardLoading(true);
+                }
+
                 setDashboardError(null);
 
                 const token =
@@ -87,14 +138,10 @@ export default function DashboardPage() {
                 if (!response.ok) {
                     throw new Error(
                         data.message ||
-                            'Failed to load dashboard.',
+                        'Failed to load dashboard.',
                     );
                 }
 
-                // Support both:
-                // { data: {...} }
-                // and
-                // {...}
                 const dashboardData =
                     data.data ?? data;
 
@@ -111,12 +158,165 @@ export default function DashboardPage() {
                         : 'Unable to load dashboard.',
                 );
             } finally {
-                setDashboardLoading(false);
+                if (showLoading) {
+                    setDashboardLoading(false);
+                }
             }
-        };
+        },
+        [router],
+    );
 
-        loadDashboard();
-    }, [loading, user, router]);
+    /*
+     * ============================================================
+     * INITIAL DASHBOARD LOAD
+     * ============================================================
+     */
+
+    useEffect(() => {
+        if (loading || !user) {
+            return;
+        }
+
+        loadDashboard(true);
+    }, [loading, user, loadDashboard]);
+
+    /*
+     * ============================================================
+     * REALTIME PRESENCE
+     * ============================================================
+     *
+     * Only Admin needs to listen for all online users.
+     *
+     * user.online:
+     *   Gateway sends userId only.
+     *   Refresh dashboard silently to get user information.
+     *
+     * user.offline:
+     *   Remove user directly from local state.
+     *
+     */
+
+    useEffect(() => {
+        if (
+            loading ||
+            !user ||
+            user.role !== 'ADMIN'
+        ) {
+            return;
+        }
+
+        const token =
+            localStorage.getItem('accessToken');
+
+        if (!token) {
+            return;
+        }
+
+        const socket: Socket = io(
+            process.env.NEXT_PUBLIC_API_URL as string,
+            {
+                auth: {
+                    token,
+                },
+            },
+        );
+
+        socket.on('connect', () => {
+            console.log(
+                'Dashboard presence connected:',
+                socket.id,
+            );
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error(
+                'Dashboard presence connection error:',
+                error,
+            );
+        });
+
+        /*
+         * ========================================================
+         * USER ONLINE
+         * ========================================================
+         */
+
+        socket.on(
+            'user.online',
+            async (data: { userId: string }) => {
+                console.log(
+                    'User online:',
+                    data.userId,
+                );
+
+                /*
+                 * Backend currently sends only userId.
+                 *
+                 * Refresh dashboard silently so we get:
+                 * - name
+                 * - email
+                 * - avatar
+                 * - role
+                 */
+                await loadDashboard(false);
+            },
+        );
+
+        /*
+         * ========================================================
+         * USER OFFLINE
+         * ========================================================
+         */
+
+        socket.on(
+            'user.offline',
+            (data: { userId: string }) => {
+                console.log(
+                    'User offline:',
+                    data.userId,
+                );
+
+                setDashboard((current) => {
+                    if (!current) {
+                        return current;
+                    }
+
+                    return {
+                        ...current,
+
+                        onlineUsers: (
+                            current.onlineUsers ?? []
+                        ).filter(
+                            (onlineUser) =>
+                                onlineUser.id !==
+                                data.userId,
+                        ),
+                    };
+                });
+            },
+        );
+
+        /*
+         * ========================================================
+         * CLEANUP
+         * ========================================================
+         */
+
+        return () => {
+            socket.off('user.online');
+            socket.off('user.offline');
+            socket.off('connect');
+            socket.off('connect_error');
+
+            socket.disconnect();
+        };
+    }, [loading, user, loadDashboard]);
+
+    /*
+     * ============================================================
+     * AUTH LOADING
+     * ============================================================
+     */
 
     if (loading || !user) {
         return (
@@ -129,6 +329,12 @@ export default function DashboardPage() {
             </main>
         );
     }
+
+    /*
+     * ============================================================
+     * DASHBOARD LOADING
+     * ============================================================
+     */
 
     if (dashboardLoading) {
         return (
@@ -147,6 +353,12 @@ export default function DashboardPage() {
             </div>
         );
     }
+
+    /*
+     * ============================================================
+     * DASHBOARD ERROR
+     * ============================================================
+     */
 
     if (dashboardError || !dashboard) {
         return (
@@ -173,6 +385,12 @@ export default function DashboardPage() {
         );
     }
 
+    /*
+     * ============================================================
+     * DASHBOARD DATA
+     * ============================================================
+     */
+
     const {
         totalProjects,
         totalTasks,
@@ -184,8 +402,8 @@ export default function DashboardPage() {
     const completionPercentage =
         totalTasks > 0
             ? Math.round(
-                  (completedTasks / totalTasks) * 100,
-              )
+                (completedTasks / totalTasks) * 100,
+            )
             : 0;
 
     const statusItems = [
@@ -226,12 +444,66 @@ export default function DashboardPage() {
         },
     ];
 
+    const onlineUsers =
+        dashboard.onlineUsers ?? [];
+
+    const recentActivities =
+        dashboard.recentActivities ?? [];
+
+    /*
+     * ============================================================
+     * ACTIVITY HELPERS
+     * ============================================================
+     */
+
+    const formatActivityAction = (
+        action: string,
+    ) => {
+        return action
+            .toLowerCase()
+            .replace(/_/g, ' ');
+    };
+
+    const getActivityTarget = (
+        activity: RecentActivity,
+    ) => {
+        return (
+            activity.metadata?.title ||
+            activity.metadata?.name ||
+            activity.entityType
+        );
+    };
+
+    const formatActivityTime = (
+        createdAt: string,
+    ) => {
+        const date = new Date(createdAt);
+
+        if (Number.isNaN(date.getTime())) {
+            return '';
+        }
+
+        return date.toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+    };
+
+    /*
+     * ============================================================
+     * RENDER
+     * ============================================================
+     */
+
     return (
         <div className="min-h-screen bg-[#fff7fb] text-slate-900">
             <Navbar />
 
             <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
                 {/* ================= HEADER ================= */}
+
                 <div className="mb-8">
                     <div className="flex items-center gap-2">
                         <span className="font-mono text-xs font-bold text-fuchsia-600">
@@ -273,8 +545,10 @@ export default function DashboardPage() {
                 </div>
 
                 {/* ================= STATS ================= */}
+
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     {/* Total Projects */}
+
                     <div className="border border-slate-200 bg-white p-5 transition hover:border-fuchsia-200">
                         <div className="flex items-center justify-between">
                             <p className="font-mono text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -296,6 +570,7 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Active Tasks */}
+
                     <div className="border border-slate-200 bg-white p-5 transition hover:border-fuchsia-200">
                         <div className="flex items-center justify-between">
                             <p className="font-mono text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -317,6 +592,7 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Completed */}
+
                     <div className="border border-slate-200 bg-white p-5 transition hover:border-fuchsia-200">
                         <div className="flex items-center justify-between">
                             <p className="font-mono text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -338,6 +614,7 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Overdue */}
+
                     <div className="border border-slate-200 bg-white p-5 transition hover:border-red-200">
                         <div className="flex items-center justify-between">
                             <p className="font-mono text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -360,8 +637,10 @@ export default function DashboardPage() {
                 </div>
 
                 {/* ================= MAIN GRID ================= */}
+
                 <div className="mt-6 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
                     {/* ================= WORKSPACE PROGRESS ================= */}
+
                     <section className="border border-pink-100 bg-white">
                         <div className="border-b border-pink-100 bg-pink-50/40 px-5 py-4 sm:px-6">
                             <div className="flex items-center gap-2">
@@ -404,6 +683,7 @@ export default function DashboardPage() {
                             </div>
 
                             {/* Progress */}
+
                             <div className="mt-6 border-t border-slate-100 pt-5">
                                 <div className="flex items-center justify-between">
                                     <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -433,6 +713,7 @@ export default function DashboardPage() {
                     </section>
 
                     {/* ================= MY WORKLOAD ================= */}
+
                     <section className="border border-slate-200 bg-white">
                         <div className="border-b border-slate-100 px-5 py-4">
                             <div className="flex items-center gap-2">
@@ -492,8 +773,10 @@ export default function DashboardPage() {
                 </div>
 
                 {/* ================= BREAKDOWN ================= */}
+
                 <div className="mt-6 grid gap-6 lg:grid-cols-2">
                     {/* Task Status */}
+
                     <section className="border border-slate-200 bg-white">
                         <div className="border-b border-slate-100 px-5 py-4 sm:px-6">
                             <div className="flex items-center gap-2">
@@ -516,10 +799,10 @@ export default function DashboardPage() {
                                 const percentage =
                                     totalTasks > 0
                                         ? Math.round(
-                                              (item.value /
-                                                  totalTasks) *
-                                                  100,
-                                          )
+                                            (item.value /
+                                                totalTasks) *
+                                            100,
+                                        )
                                         : 0;
 
                                 return (
@@ -555,6 +838,7 @@ export default function DashboardPage() {
                     </section>
 
                     {/* Priority */}
+
                     <section className="border border-slate-200 bg-white">
                         <div className="border-b border-slate-100 px-5 py-4 sm:px-6">
                             <div className="flex items-center gap-2">
@@ -577,10 +861,10 @@ export default function DashboardPage() {
                                 const percentage =
                                     totalTasks > 0
                                         ? Math.round(
-                                              (item.value /
-                                                  totalTasks) *
-                                                  100,
-                                          )
+                                            (item.value /
+                                                totalTasks) *
+                                            100,
+                                        )
                                         : 0;
 
                                 const isUrgent =
@@ -595,13 +879,12 @@ export default function DashboardPage() {
                                     >
                                         <div className="flex items-center justify-between">
                                             <span
-                                                className={`font-mono text-[10px] font-bold ${
-                                                    isUrgent
+                                                className={`font-mono text-[10px] font-bold ${isUrgent
                                                         ? 'text-red-500'
                                                         : isHigh
-                                                          ? 'text-orange-500'
-                                                          : 'text-slate-500'
-                                                }`}
+                                                            ? 'text-orange-500'
+                                                            : 'text-slate-500'
+                                                    }`}
                                             >
                                                 {item.label}
                                             </span>
@@ -617,13 +900,12 @@ export default function DashboardPage() {
 
                                         <div className="mt-2 h-1.5 w-full bg-slate-100">
                                             <div
-                                                className={`h-1.5 transition-all ${
-                                                    isUrgent
+                                                className={`h-1.5 transition-all ${isUrgent
                                                         ? 'bg-red-500'
                                                         : isHigh
-                                                          ? 'bg-orange-500'
-                                                          : 'bg-fuchsia-500'
-                                                }`}
+                                                            ? 'bg-orange-500'
+                                                            : 'bg-fuchsia-500'
+                                                    }`}
                                                 style={{
                                                     width: `${percentage}%`,
                                                 }}
@@ -636,7 +918,207 @@ export default function DashboardPage() {
                     </section>
                 </div>
 
+                {/* ======================================================
+                    ADMIN DASHBOARD
+                    ====================================================== */}
+
+                {user.role === 'ADMIN' && (
+                    <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.5fr]">
+                        {/* ================= ONLINE USERS ================= */}
+
+                        <section className="border border-emerald-100 bg-white">
+                            <div className="border-b border-emerald-100 bg-emerald-50/40 px-5 py-4 sm:px-6">
+                                <div className="flex items-center justify-between gap-4">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-mono text-xs font-bold text-emerald-600">
+                                                ●
+                                            </span>
+
+                                            <h2 className="font-mono text-sm font-bold text-slate-900">
+                                                online-users
+                                            </h2>
+                                        </div>
+
+                                        <p className="mt-1 font-mono text-[10px] text-slate-400">
+                                            // users currently online
+                                        </p>
+                                    </div>
+
+                                    <span className="font-mono text-xs font-bold text-emerald-600">
+                                        {onlineUsers.length}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {onlineUsers.length === 0 ? (
+                                <div className="p-6">
+                                    <p className="font-mono text-xs text-slate-400">
+                                        // no users currently online
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="divide-y divide-slate-100">
+                                    {onlineUsers.map(
+                                        (onlineUser) => (
+                                            <div
+                                                key={
+                                                    onlineUser.id
+                                                }
+                                                className="flex items-center gap-3 px-5 py-4 transition hover:bg-emerald-50/30"
+                                            >
+                                                <div className="relative shrink-0">
+                                                    <div className="flex h-9 w-9 items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 font-mono text-sm font-bold text-emerald-700">
+                                                        {onlineUser.name
+                                                            ?.charAt(
+                                                                0,
+                                                            )
+                                                            .toUpperCase()}
+                                                    </div>
+
+                                                    <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
+                                                </div>
+
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="truncate text-sm font-semibold text-slate-800">
+                                                        {
+                                                            onlineUser.name
+                                                        }
+                                                    </p>
+
+                                                    <p className="truncate text-xs text-slate-400">
+                                                        {
+                                                            onlineUser.email
+                                                        }
+                                                    </p>
+                                                </div>
+
+                                                <span className="shrink-0 font-mono text-[10px] font-bold text-emerald-600">
+                                                    online
+                                                </span>
+                                            </div>
+                                        ),
+                                    )}
+                                </div>
+                            )}
+                        </section>
+
+                        {/* ================= RECENT ACTIVITIES ================= */}
+
+                        <section className="border border-slate-200 bg-white">
+                            <div className="border-b border-slate-100 px-5 py-4 sm:px-6">
+                                <div className="flex items-center justify-between gap-4">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-mono text-xs font-bold text-fuchsia-600">
+                                                ::
+                                            </span>
+
+                                            <h2 className="font-mono text-sm font-bold text-slate-900">
+                                                recent-activities
+                                            </h2>
+                                        </div>
+
+                                        <p className="mt-1 font-mono text-[10px] text-slate-400">
+                                            // latest workspace activity
+                                        </p>
+                                    </div>
+
+                                    <span className="font-mono text-[10px] text-slate-400">
+                                        latest 10
+                                    </span>
+                                </div>
+                            </div>
+
+                            {recentActivities.length === 0 ? (
+                                <div className="p-6">
+                                    <p className="font-mono text-xs text-slate-400">
+                                        // no recent activities
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="divide-y divide-slate-100">
+                                    {recentActivities.map(
+                                        (activity) => (
+                                            <div
+                                                key={
+                                                    activity.id
+                                                }
+                                                className="px-5 py-4 transition hover:bg-pink-50/30 sm:px-6"
+                                            >
+                                                <div className="flex gap-3">
+                                                    <div className="shrink-0">
+                                                        <div className="flex h-8 w-8 items-center justify-center rounded-md border border-fuchsia-100 bg-fuchsia-50 font-mono text-xs font-bold text-fuchsia-600">
+                                                            {activity.user?.name
+                                                                ?.charAt(
+                                                                    0,
+                                                                )
+                                                                .toUpperCase() ||
+                                                                '?'}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                                            <p className="text-sm text-slate-700">
+                                                                <span className="font-semibold text-slate-900">
+                                                                    {activity.user
+                                                                        ?.name ||
+                                                                        'Unknown user'}
+                                                                </span>{' '}
+
+                                                                <span className="text-slate-500">
+                                                                    {formatActivityAction(
+                                                                        activity.action,
+                                                                    )}
+                                                                </span>{' '}
+
+                                                                <span className="font-semibold text-fuchsia-600">
+                                                                    {
+                                                                        getActivityTarget(
+                                                                            activity,
+                                                                        )
+                                                                    }
+                                                                </span>
+                                                            </p>
+
+                                                            <span className="shrink-0 font-mono text-[10px] text-slate-400">
+                                                                {formatActivityTime(
+                                                                    activity.createdAt,
+                                                                )}
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="mt-1 flex items-center gap-2">
+                                                            <span className="font-mono text-[9px] uppercase tracking-wider text-slate-300">
+                                                                {
+                                                                    activity.entityType
+                                                                }
+                                                            </span>
+
+                                                            <span className="font-mono text-[9px] text-slate-300">
+                                                                /
+                                                            </span>
+
+                                                            <span className="font-mono text-[9px] text-slate-300">
+                                                                {
+                                                                    activity.action
+                                                                }
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ),
+                                    )}
+                                </div>
+                            )}
+                        </section>
+                    </div>
+                )}
+
                 {/* ================= QUICK ACTIONS ================= */}
+
                 <section className="mt-6 border border-slate-200 bg-white">
                     <div className="border-b border-slate-100 px-5 py-4">
                         <div className="flex items-center gap-2">
@@ -708,6 +1190,7 @@ export default function DashboardPage() {
                 </section>
 
                 {/* ================= WORKSPACE INFO ================= */}
+
                 <section className="mt-6 border border-slate-200 bg-white">
                     <div className="border-b border-slate-100 px-5 py-4 sm:px-6">
                         <div className="flex items-center justify-between gap-4">
@@ -735,6 +1218,7 @@ export default function DashboardPage() {
 
                     <div className="grid sm:grid-cols-2 lg:grid-cols-3">
                         {/* User */}
+
                         <div className="border-b border-slate-100 p-5 sm:border-r lg:border-b-0">
                             <p className="font-mono text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                 current-user
@@ -760,6 +1244,7 @@ export default function DashboardPage() {
                         </div>
 
                         {/* Dashboard status */}
+
                         <div className="border-b border-slate-100 p-5 lg:border-r lg:border-b-0">
                             <p className="font-mono text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                 dashboard-status
@@ -779,6 +1264,7 @@ export default function DashboardPage() {
                         </div>
 
                         {/* Environment */}
+
                         <div className="p-5">
                             <p className="font-mono text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                 environment
@@ -796,6 +1282,7 @@ export default function DashboardPage() {
                 </section>
 
                 {/* ================= FOOTER NOTE ================= */}
+
                 <div className="mt-6 flex items-center justify-between border-t border-pink-100 pt-4">
                     <p className="font-mono text-[10px] text-slate-400">
                         // taskflow workspace dashboard
