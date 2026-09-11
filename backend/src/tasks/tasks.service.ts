@@ -16,6 +16,7 @@ import { ProjectMemberRole } from '../project-members/entities/project-member.en
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/enums/notification-type.enum';
 import { ActivitiesService } from '../activities/activities.service';
+import { ElasticsearchService } from '../elasticsearch/elasticsearch.service';
 
 @Injectable()
 export class TasksService {
@@ -28,6 +29,8 @@ export class TasksService {
     private readonly notificationsService: NotificationsService,
 
     private readonly activitiesService: ActivitiesService,
+
+    private readonly elasticsearchService: ElasticsearchService,
   ) { }
 
   async create(
@@ -68,7 +71,6 @@ export class TasksService {
     const createdTask =
       await this.taskRepository.save(task);
 
-    // Record activity
     await this.activitiesService.create({
       userId: creatorId,
       action: 'TASK_CREATED',
@@ -76,7 +78,6 @@ export class TasksService {
       entityType: 'task',
     });
 
-    // Notify assignee when task is created with an assignee
     if (createdTask.assigneeId) {
       await this.notifyTaskAssigned(createdTask);
 
@@ -124,11 +125,56 @@ export class TasksService {
         },
       );
 
+    /*
+     * Nếu có search:
+     * Elasticsearch sẽ tìm kiếm title + description
+     * và trả về danh sách task ID.
+     *
+     * PostgreSQL vẫn chịu trách nhiệm:
+     * - Authorization
+     * - Relations
+     * - Các filter còn lại
+     * - Lấy dữ liệu Task đầy đủ
+     */
+    let searchTaskIds: string[] | undefined;
+
     if (search) {
+      const searchResult =
+        await this.elasticsearchService.search(
+          'tasks',
+          search,
+          status,
+          priority,
+          page,
+          limit,
+        );
+
+      searchTaskIds = searchResult.data.map(
+        (task) => task.id,
+      );
+
+      /*
+       * Elasticsearch không tìm thấy task nào.
+       */
+      if (searchTaskIds.length === 0) {
+        return {
+          data: [],
+          meta: {
+            page,
+            limit,
+            total: 0,
+            totalPages: 0,
+          },
+        };
+      }
+
+      /*
+       * Chỉ lấy những Task ID mà Elasticsearch tìm thấy.
+       */
       queryBuilder.andWhere(
-        '(task.title ILIKE :search OR task.description ILIKE :search)',
+        'task.id IN (:...searchTaskIds)',
         {
-          search: `%${search}%`,
+          searchTaskIds,
         },
       );
     }
@@ -169,11 +215,43 @@ export class TasksService {
       );
     }
 
-    const [data, total] = await queryBuilder
-      .orderBy('task.createdAt', 'DESC')
-      .skip(skip)
-      .take(limit)
-      .getManyAndCount();
+    /*
+     * Khi search bằng Elasticsearch:
+     *
+     * Elasticsearch đã pagination bằng:
+     * from + size
+     *
+     * nên PostgreSQL KHÔNG được skip/take lần nữa.
+     */
+    if (search) {
+      const [data, total] =
+        await queryBuilder
+          .orderBy('task.createdAt', 'DESC')
+          .getManyAndCount();
+
+      return {
+        data,
+        meta: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(
+            total / limit,
+          ),
+        },
+      };
+    }
+
+    /*
+     * Không search:
+     * PostgreSQL xử lý pagination như trước.
+     */
+    const [data, total] =
+      await queryBuilder
+        .orderBy('task.createdAt', 'DESC')
+        .skip(skip)
+        .take(limit)
+        .getManyAndCount();
 
     return {
       data,
@@ -224,7 +302,6 @@ export class TasksService {
         userId,
       );
 
-    // Only Manager can change task assignee
     if (
       updateTaskDto.assigneeId !== undefined &&
       role !== ProjectMemberRole.MANAGER
@@ -237,8 +314,6 @@ export class TasksService {
     const newAssigneeId =
       updateTaskDto.assigneeId;
 
-    // Assignee must be a member of the project
-    // null means unassign
     if (
       newAssigneeId !== undefined &&
       newAssigneeId !== null
@@ -267,7 +342,6 @@ export class TasksService {
     const updatedTask =
       await this.taskRepository.save(task);
 
-    // Record general task update
     await this.activitiesService.create({
       userId,
       action: 'TASK_UPDATED',
@@ -275,12 +349,10 @@ export class TasksService {
       entityType: 'task',
     });
 
-    // Assignee changed
     if (
       newAssigneeId !== undefined &&
       previousAssigneeId !== newAssigneeId
     ) {
-      // Notify previous assignee
       if (previousAssigneeId) {
         await this.notifyTaskUnassigned(
           updatedTask,
@@ -295,7 +367,6 @@ export class TasksService {
         });
       }
 
-      // Notify new assignee
       if (newAssigneeId) {
         await this.notifyTaskAssigned(
           updatedTask,
@@ -391,5 +462,61 @@ export class TasksService {
       entityType: 'task',
       entityId: task.id,
     });
+  }
+
+  async reindexToElasticsearch() {
+    const tasks =
+      await this.taskRepository.find();
+
+    await this.elasticsearchService.bulkIndex(
+      'tasks',
+      tasks.map((task) => ({
+        id: task.id,
+        projectId: task.projectId,
+        title: task.title,
+        description: task.description,
+        status: task.status,
+        priority: task.priority,
+        creatorId: task.creatorId,
+        assigneeId: task.assigneeId,
+        dueDate: task.dueDate,
+        createdAt: task.createdAt,
+        updatedAt: task.updatedAt,
+      })),
+    );
+
+    return {
+      indexed: tasks.length,
+    };
+  }
+
+  async search(
+    keyword?: string,
+    status?: string,
+    priority?: string,
+    page = 1,
+    limit = 10,
+  ) {
+    const result =
+      await this.elasticsearchService.search(
+        'tasks',
+        keyword,
+        status,
+        priority,
+        page,
+        limit,
+      );
+
+    return {
+      data: result.data,
+      meta: {
+        page,
+        limit,
+        total: result.total,
+        totalPages: Math.ceil(
+          result.total / limit,
+        ),
+      },
+    };
   }
 }

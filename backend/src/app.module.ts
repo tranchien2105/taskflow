@@ -22,6 +22,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { MailModule } from './mail/mail.module';
 import { QueuesModule } from './queues/queues.module';
 import { ActivitiesModule } from './activities/activities.module';
+import { ElasticsearchModule } from './elasticsearch/elasticsearch.module';
 
 @Module({
   imports: [
@@ -71,6 +72,8 @@ import { ActivitiesModule } from './activities/activities.module';
     QueuesModule,
 
     ActivitiesModule,
+
+    ElasticsearchModule,
   ],
 
   controllers: [AppController],

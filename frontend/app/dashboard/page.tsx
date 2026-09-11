@@ -7,6 +7,7 @@ import { io, Socket } from 'socket.io-client';
 
 import { useAuth } from '@/contexts/AuthContext';
 import Navbar from '@/components/Navbar';
+import { apiFetch, UnauthorizedError } from '@/lib/api';
 
 type OnlineUser = {
     id: string;
@@ -107,6 +108,7 @@ export default function DashboardPage() {
      *
      */
 
+
     const loadDashboard = useCallback(
         async (showLoading = true) => {
             try {
@@ -116,34 +118,11 @@ export default function DashboardPage() {
 
                 setDashboardError(null);
 
-                const token =
-                    localStorage.getItem('accessToken');
+                const data = await apiFetch<{
+                    data: DashboardData;
+                }>('/dashboard');
 
-                if (!token) {
-                    router.replace('/login');
-                    return;
-                }
-
-                const response = await fetch(
-                    `${process.env.NEXT_PUBLIC_API_URL}/dashboard`,
-                    {
-                        headers: {
-                            Authorization: `Bearer ${token}`,
-                        },
-                    },
-                );
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(
-                        data.message ||
-                        'Failed to load dashboard.',
-                    );
-                }
-
-                const dashboardData =
-                    data.data ?? data;
+                const dashboardData = data.data ?? data;
 
                 setDashboard(dashboardData);
             } catch (error) {
@@ -151,6 +130,12 @@ export default function DashboardPage() {
                     'Dashboard loading error:',
                     error,
                 );
+
+                // apiFetch đã tự xử lý 401:
+                // remove accessToken + redirect /login
+                if (error instanceof UnauthorizedError) {
+                    return;
+                }
 
                 setDashboardError(
                     error instanceof Error
@@ -163,8 +148,9 @@ export default function DashboardPage() {
                 }
             }
         },
-        [router],
+        [],
     );
+
 
     /*
      * ============================================================
@@ -880,10 +866,10 @@ export default function DashboardPage() {
                                         <div className="flex items-center justify-between">
                                             <span
                                                 className={`font-mono text-[10px] font-bold ${isUrgent
-                                                        ? 'text-red-500'
-                                                        : isHigh
-                                                            ? 'text-orange-500'
-                                                            : 'text-slate-500'
+                                                    ? 'text-red-500'
+                                                    : isHigh
+                                                        ? 'text-orange-500'
+                                                        : 'text-slate-500'
                                                     }`}
                                             >
                                                 {item.label}
@@ -901,10 +887,10 @@ export default function DashboardPage() {
                                         <div className="mt-2 h-1.5 w-full bg-slate-100">
                                             <div
                                                 className={`h-1.5 transition-all ${isUrgent
-                                                        ? 'bg-red-500'
-                                                        : isHigh
-                                                            ? 'bg-orange-500'
-                                                            : 'bg-fuchsia-500'
+                                                    ? 'bg-red-500'
+                                                    : isHigh
+                                                        ? 'bg-orange-500'
+                                                        : 'bg-fuchsia-500'
                                                     }`}
                                                 style={{
                                                     width: `${percentage}%`,
