@@ -12,12 +12,33 @@ export class ElasticsearchService implements OnModuleInit {
     }
 
     async onModuleInit(): Promise<void> {
-        const response = await this.client.info();
+        const maxRetries = 20;
+        const retryDelay = 5000;
 
-        console.log(
-            'Elasticsearch connected:',
-            response.version.number,
-        );
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                const response = await this.client.info();
+
+                console.log(
+                    'Elasticsearch connected:',
+                    response.version.number,
+                );
+
+                return;
+            } catch (error) {
+                console.log(
+                    `Elasticsearch not ready. Retry ${attempt}/${maxRetries}...`,
+                );
+
+                if (attempt === maxRetries) {
+                    throw error;
+                }
+
+                await new Promise((resolve) =>
+                    setTimeout(resolve, retryDelay),
+                );
+            }
+        }
     }
 
     async bulkIndex(
@@ -108,7 +129,8 @@ export class ElasticsearchService implements OnModuleInit {
         });
 
         const data = response.hits.hits.map(
-            (hit) => hit._source as Record<string, any>,
+            (hit) =>
+                hit._source as Record<string, any>,
         );
 
         const total =
@@ -122,3 +144,4 @@ export class ElasticsearchService implements OnModuleInit {
         };
     }
 }
+
