@@ -53,7 +53,6 @@ export class ProjectInvitationsGateway
       const token: unknown = socket.handshake.auth?.token;
 
       if (typeof token !== 'string' || !token) {
-        console.log('Socket rejected: no token');
         socket.disconnect();
         return;
       }
@@ -63,14 +62,12 @@ export class ProjectInvitationsGateway
       const userId = payload.sub;
 
       if (!userId) {
-        console.log('Socket rejected: invalid user id');
         socket.disconnect();
         return;
       }
 
       socket.data.userId = userId;
 
-      console.log('Socket authenticated:', userId);
 
       /**
        * Personal room
@@ -81,9 +78,7 @@ export class ProjectInvitationsGateway
        */
       void socket.join(`user:${userId}`);
 
-      console.log(`Socket joined room: user:${userId}`);
     } catch (error: unknown) {
-      console.error('Socket authentication failed:', error);
       socket.disconnect();
     }
   }
@@ -92,7 +87,6 @@ export class ProjectInvitationsGateway
    * Socket disconnected.
    */
   handleDisconnect(socket: AuthenticatedSocket): void {
-    console.log(`WebSocket disconnected: ${socket.id}`);
   }
 
   /**
@@ -115,9 +109,6 @@ export class ProjectInvitationsGateway
   ): void {
     void socket.join(`project:${data.projectId}`);
 
-    console.log(
-      `Socket ${socket.id} joined project room: project:${data.projectId}`,
-    );
   }
 
   /**

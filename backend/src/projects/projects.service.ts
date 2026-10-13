@@ -12,7 +12,7 @@ import {
 
 import { User } from '../users/entities/user.entity';
 import { CreateProjectDto } from './dto/create-project.dto';
-import { Project } from './entities/project.entity';
+import { Project, ProjectStatus } from './entities/project.entity';
 import { QueryProjectDto } from './dto/query-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { ProjectMembersService } from '../project-members/project-members.service';
@@ -332,6 +332,49 @@ export class ProjectsService {
     return {
       message:
         'Project deleted successfully',
+    };
+  }
+
+  async getAiProjectStats(userId: string) {
+    const rows = await this.projectsRepository
+      .createQueryBuilder('project')
+      .innerJoin(
+        'project_members',
+        'projectMember',
+        'projectMember.project_id = project.id',
+      )
+      .where('projectMember.user_id = :userId', {
+        userId,
+      })
+      .select('project.status', 'status')
+      .addSelect(
+        'COUNT(DISTINCT project.id)',
+        'count',
+      )
+      .groupBy('project.status')
+      .getRawMany<{
+        status: ProjectStatus;
+        count: string;
+      }>();
+
+    const counts: Record<ProjectStatus, number> = {
+      [ProjectStatus.PLANNING]: 0,
+      [ProjectStatus.ACTIVE]: 0,
+      [ProjectStatus.ON_HOLD]: 0,
+      [ProjectStatus.COMPLETED]: 0,
+      [ProjectStatus.ARCHIVED]: 0,
+    };
+
+    for (const row of rows) {
+      counts[row.status] = Number(row.count);
+    }
+
+    return {
+      total: Object.values(counts).reduce(
+        (sum, count) => sum + count,
+        0,
+      ),
+      counts,
     };
   }
 }

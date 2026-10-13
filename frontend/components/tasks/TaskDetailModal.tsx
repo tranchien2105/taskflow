@@ -296,10 +296,6 @@ export default function TaskDetailModal({
 
                 setMembers(projectMembers);
             } catch (error) {
-                console.error(
-                    'Load project members failed:',
-                    error,
-                );
 
                 toast.error(
                     'Unable to load project members.',
@@ -431,10 +427,6 @@ export default function TaskDetailModal({
                     currentLabelIds,
                 );
             } catch (error) {
-                console.error(
-                    'Load task labels failed:',
-                    error,
-                );
 
                 toast.error(
                     'Unable to load task labels.',
@@ -759,10 +751,6 @@ export default function TaskDetailModal({
 
             setEditing(false);
         } catch (error) {
-            console.error(
-                'Update task failed:',
-                error,
-            );
 
             toast.error(
                 'Unable to connect to the server.',
@@ -833,10 +821,6 @@ export default function TaskDetailModal({
 
             onDeleted?.(task.id);
         } catch (error) {
-            console.error(
-                'Delete task failed:',
-                error,
-            );
 
             toast.error(
                 'Unable to connect to the server.',

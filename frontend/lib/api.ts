@@ -86,13 +86,21 @@ export async function apiFetch<T>(
      * ========================================
      */
 
-    const response = await fetch(
-        `${API_URL}${endpoint}`,
-        {
-            ...fetchOptions,
-            headers: requestHeaders,
-        },
-    );
+    let response: Response;
+
+    try {
+        response = await fetch(
+            `${API_URL}${endpoint}`,
+            {
+                ...fetchOptions,
+                headers: requestHeaders,
+            },
+        );
+    } catch {
+        throw new Error(
+            'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối và thử lại.',
+        );
+    }
 
     /*
      * ========================================
@@ -115,7 +123,7 @@ export async function apiFetch<T>(
      * avoid showing an "Unauthorized" toast.
      */
 
-    if (response.status === 401) {
+    if (response.status === 401 && auth) {
         if (typeof window !== 'undefined') {
             localStorage.removeItem(
                 'accessToken',
@@ -125,6 +133,14 @@ export async function apiFetch<T>(
         }
 
         throw new UnauthorizedError();
+    }
+
+    // Hide backend diagnostics and stack details from the user interface.
+    // Server failures should use a stable, actionable message instead.
+    if (response.status >= 500) {
+        throw new Error(
+            'Máy chủ đang gặp sự cố. Vui lòng thử lại sau.',
+        );
     }
 
     /*
@@ -139,7 +155,7 @@ export async function apiFetch<T>(
         data = await response.json();
     } catch {
         throw new Error(
-            'Invalid response from server.',
+            'Máy chủ trả về dữ liệu không hợp lệ. Vui lòng thử lại sau.',
         );
     }
 

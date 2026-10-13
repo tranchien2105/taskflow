@@ -23,26 +23,15 @@ export default function SocketTest() {
         );
 
         socket.on('connect', () => {
-            console.log(
-                'Socket connected:',
-                socket.id,
-            );
         });
 
         socket.on(
             'project.member.added',
             (data) => {
-                console.log(
-                    'Project member added:',
-                    data,
-                );
             },
         );
 
         socket.on('disconnect', () => {
-            console.log(
-                'Socket disconnected',
-            );
         });
 
         return () => {

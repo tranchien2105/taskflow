@@ -19,16 +19,9 @@ export class ElasticsearchService implements OnModuleInit {
             try {
                 const response = await this.client.info();
 
-                console.log(
-                    'Elasticsearch connected:',
-                    response.version.number,
-                );
 
                 return;
             } catch (error) {
-                console.log(
-                    `Elasticsearch not ready. Retry ${attempt}/${maxRetries}...`,
-                );
 
                 if (attempt === maxRetries) {
                     throw error;
@@ -65,9 +58,6 @@ export class ElasticsearchService implements OnModuleInit {
         });
 
         if (response.errors) {
-            console.error(
-                'Elasticsearch bulk indexing has errors',
-            );
 
             throw new Error(
                 'Elasticsearch bulk indexing failed',

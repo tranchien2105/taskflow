@@ -62,7 +62,6 @@ export default function ProjectLabels({
 
             setLabels(data.data ?? data);
         } catch (err) {
-            console.error(err);
 
             setError('Unable to load labels.');
         } finally {
@@ -168,7 +167,6 @@ export default function ProjectLabels({
 
             resetForm();
         } catch (err) {
-            console.error(err);
 
             setError(
                 err instanceof Error
@@ -225,7 +223,6 @@ export default function ProjectLabels({
                 'Label deleted successfully.',
             );
         } catch (err) {
-            console.error(err);
 
             setError(
                 err instanceof Error

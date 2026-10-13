@@ -23,6 +23,7 @@ import { MailModule } from './mail/mail.module';
 import { QueuesModule } from './queues/queues.module';
 import { ActivitiesModule } from './activities/activities.module';
 import { ElasticsearchModule } from './elasticsearch/elasticsearch.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -74,6 +75,8 @@ import { ElasticsearchModule } from './elasticsearch/elasticsearch.module';
     ActivitiesModule,
 
     ElasticsearchModule,
+
+    AiModule,
   ],
 
   controllers: [AppController],

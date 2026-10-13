@@ -244,37 +244,38 @@ export class ProjectMembersService {
     return updatedMember;
   }
 
+
   async remove(
     projectId: string,
     userId: string,
   ): Promise<void> {
-    const member =
-      await this.findOne(
-        projectId,
-        userId,
-      );
+    const member = await this.findOne(
+      projectId,
+      userId,
+    );
 
-    if (
-      member.role === ProjectMemberRole.MANAGER
-    ) {
+    if (member.role === ProjectMemberRole.MANAGER) {
       throw new ForbiddenException(
         'Cannot remove a project manager',
       );
     }
 
-    await this.projectMemberRepository.remove(
-      member,
-    );
+    await this.projectMemberRepository.remove(member);
 
-    // Record activity
+    // Record activity on the project.
     await this.activitiesService.create({
       userId,
       action: 'PROJECT_MEMBER_REMOVED',
-      entity: member,
+      entity: {
+        id: projectId,
+        projectId,
+        name: member.user?.name,
+      },
       projectId,
       entityType: 'project',
     });
   }
+
 
   async isMember(
     projectId: string,

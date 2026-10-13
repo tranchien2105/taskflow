@@ -114,7 +114,6 @@ export default function ProjectMembers({
 
             setMembers(data);
         } catch (error) {
-            console.error(error);
 
             toast.error(
                 'Unable to connect to the server.',
@@ -172,10 +171,6 @@ export default function ProjectMembers({
         socketRef.current = socket;
 
         socket.on('connect', () => {
-            console.log(
-                'Project members socket connected:',
-                socket.id,
-            );
 
             /**
              * Tell backend which project
@@ -202,10 +197,6 @@ export default function ProjectMembers({
             (data: {
                 userIds: string[];
             }) => {
-                console.log(
-                    'Current online users:',
-                    data.userIds,
-                );
 
                 setOnlineUserIds(
                     data.userIds,
@@ -221,10 +212,6 @@ export default function ProjectMembers({
             (data: {
                 userId: string;
             }) => {
-                console.log(
-                    'User online:',
-                    data.userId,
-                );
 
                 setOnlineUserIds(
                     (currentIds) => {
@@ -256,10 +243,6 @@ export default function ProjectMembers({
             (data: {
                 userId: string;
             }) => {
-                console.log(
-                    'User offline:',
-                    data.userId,
-                );
 
                 setOnlineUserIds(
                     (currentIds) =>
@@ -278,10 +261,6 @@ export default function ProjectMembers({
         socket.on(
             'project.member.added',
             (member: ProjectMember) => {
-                console.log(
-                    'Project member added:',
-                    member,
-                );
 
                 setMembers(
                     (currentMembers) => {
@@ -318,16 +297,9 @@ export default function ProjectMembers({
         );
 
         socket.on('connect_error', (error) => {
-            console.error(
-                'Project members socket connection error:',
-                error,
-            );
         });
 
         socket.on('disconnect', () => {
-            console.log(
-                'Project members socket disconnected',
-            );
         });
 
         return () => {
@@ -399,7 +371,6 @@ export default function ProjectMembers({
 
                     setUsers(data);
                 } catch (error) {
-                    console.error(error);
 
                     toast.error(
                         'Unable to search users.',
@@ -498,7 +469,6 @@ export default function ProjectMembers({
              */
             await loadMembers();
         } catch (error) {
-            console.error(error);
 
             toast.error(
                 'Unable to connect to the server.',
@@ -567,7 +537,6 @@ export default function ProjectMembers({
 
             await loadMembers();
         } catch (error) {
-            console.error(error);
 
             toast.error(
                 'Unable to connect to the server.',
@@ -658,7 +627,6 @@ export default function ProjectMembers({
                 `${member.user.name} removed from the project.`,
             );
         } catch (error) {
-            console.error(error);
 
             toast.error(
                 'Unable to connect to the server.',

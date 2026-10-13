@@ -130,7 +130,6 @@ export default function CreateTaskModal({
                         : memberData.data ?? [],
                 );
             } catch (error) {
-                console.error(error);
 
                 toast.error(
                     'Unable to load project members.',
@@ -195,7 +194,6 @@ export default function CreateTaskModal({
                         : labelData.data ?? [],
                 );
             } catch (error) {
-                console.error(error);
 
                 toast.error(
                     'Unable to load project labels.',
@@ -349,10 +347,6 @@ export default function CreateTaskModal({
             onCreated();
             onClose();
         } catch (error) {
-            console.error(
-                'Create task failed:',
-                error,
-            );
 
             toast.error(
                 'Unable to connect to the server.',

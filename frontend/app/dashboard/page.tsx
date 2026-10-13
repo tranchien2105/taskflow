@@ -126,10 +126,6 @@ export default function DashboardPage() {
 
                 setDashboard(dashboardData);
             } catch (error) {
-                console.error(
-                    'Dashboard loading error:',
-                    error,
-                );
 
                 // apiFetch đã tự xử lý 401:
                 // remove accessToken + redirect /login
@@ -208,17 +204,9 @@ export default function DashboardPage() {
         );
 
         socket.on('connect', () => {
-            console.log(
-                'Dashboard presence connected:',
-                socket.id,
-            );
         });
 
         socket.on('connect_error', (error) => {
-            console.error(
-                'Dashboard presence connection error:',
-                error,
-            );
         });
 
         /*
@@ -230,10 +218,6 @@ export default function DashboardPage() {
         socket.on(
             'user.online',
             async (data: { userId: string }) => {
-                console.log(
-                    'User online:',
-                    data.userId,
-                );
 
                 /*
                  * Backend currently sends only userId.
@@ -257,10 +241,6 @@ export default function DashboardPage() {
         socket.on(
             'user.offline',
             (data: { userId: string }) => {
-                console.log(
-                    'User offline:',
-                    data.userId,
-                );
 
                 setDashboard((current) => {
                     if (!current) {

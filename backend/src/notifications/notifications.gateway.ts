@@ -55,23 +55,13 @@ export class NotificationsGateway {
 
             void socket.join(`user:${payload.sub}`);
 
-            console.log(
-                `Notification socket joined room: user:${payload.sub}`,
-            );
         } catch (error: unknown) {
-            console.error(
-                'Notification socket authentication failed:',
-                error,
-            );
 
             socket.disconnect();
         }
     }
 
     handleDisconnect(socket: AuthenticatedSocket) {
-        console.log(
-            `Notification socket disconnected: ${socket.id}`,
-        );
     }
 
     emitNotification(

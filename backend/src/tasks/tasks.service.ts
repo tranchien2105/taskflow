@@ -519,4 +519,41 @@ export class TasksService {
       },
     };
   }
+
+  async getTasksForAi(userId: string) {
+    const tasks = await this.taskRepository
+      .createQueryBuilder('task')
+      .innerJoin(
+        'project_members',
+        'projectMember',
+        'projectMember.project_id = task.project_id',
+      )
+      .where('projectMember.user_id = :userId', { userId })
+      .select([
+        'task.id',
+        'task.title',
+        'task.description',
+        'task.status',
+        'task.priority',
+        'task.dueDate',
+        'task.projectId',
+        'task.assigneeId',
+        'task.createdAt',
+      ])
+      .orderBy('task.dueDate', 'ASC', 'NULLS LAST')
+      .take(50)
+      .getMany();
+
+    return tasks.map((task) => ({
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      priority: task.priority,
+      dueDate: task.dueDate,
+      projectId: task.projectId,
+      assigneeId: task.assigneeId,
+      createdAt: task.createdAt,
+    }));
+  }
 }

@@ -26,4 +26,4 @@ import { ElasticsearchModule } from '../elasticsearch/elasticsearch.module';
   ],
   exports: [TasksService],
 })
-export class TasksModule { }
+export class TasksModule {}

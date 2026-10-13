@@ -97,7 +97,6 @@ export default function TaskLabels({
                 projectLabelsData.data ?? projectLabelsData,
             );
         } catch (error) {
-            console.error(error);
 
             toast.error(
                 error instanceof Error
@@ -159,7 +158,6 @@ export default function TaskLabels({
 
             toast.success('Label added.');
         } catch (error) {
-            console.error(error);
 
             toast.error(
                 'Unable to connect to the server.',
@@ -216,7 +214,6 @@ export default function TaskLabels({
 
             toast.success('Label removed.');
         } catch (error) {
-            console.error(error);
 
             toast.error(
                 'Unable to connect to the server.',

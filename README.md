@@ -11,6 +11,7 @@ Dự án được tách thành REST API NestJS, giao diện Next.js và lớp re
 - Tạo, cập nhật, xóa và phân công task cho thành viên project.
 - Theo dõi status, priority, deadline và labels của task.
 - Notifications realtime cho các hoạt động liên quan.
+- Trợ lý AI hỗ trợ hỏi thông tin task/project và tạo task/project bằng ngôn ngữ tự nhiên.
 
 ## Phân quyền
 
@@ -55,8 +56,10 @@ Next.js (port 3001)
 
 - Frontend lưu access token sau khi đăng nhập. `apiFetch` tự thêm header `Authorization: Bearer <token>` cho các API yêu cầu xác thực.
 - Khi API trả về `401`, frontend xóa token và chuyển người dùng về trang đăng nhập.
+- Lỗi server và lỗi kết nối qua `apiFetch` được hiển thị bằng thông báo thân thiện thay vì chi tiết kỹ thuật.
 - Task API trả về quan hệ `assignee`; danh sách task hiển thị người đang được giao task.
 - Notification gateway phát event theo room `user:<userId>` để mỗi người dùng chỉ nhận notification của mình.
+- AI chat yêu cầu JWT; backend chỉ truy vấn dữ liệu của người dùng hiện tại và kiểm tra dữ liệu trước khi tạo task/project.
 
 ## Chạy nhanh với Docker
 
@@ -106,6 +109,21 @@ Tạo `frontend/.env.local` với nội dung:
 NEXT_PUBLIC_API_URL=http://localhost:3000
 ```
 
+Để dùng trợ lý AI, cài và chạy [Ollama](https://ollama.com/), sau đó tải model mặc định:
+
+```bash
+ollama pull qwen3:1.7b
+```
+
+Trong `backend/.env`, cấu hình Ollama nếu cần:
+
+```env
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=qwen3:1.7b
+```
+
+`OLLAMA_BASE_URL` mặc định là `http://host.docker.internal:11434` để backend chạy trong Docker kết nối đến Ollama trên máy host. Khi chạy backend trực tiếp trên máy, dùng `http://localhost:11434`.
+
 Sau đó chạy:
 
 ```bash
@@ -123,6 +141,7 @@ Mở ứng dụng tại `http://localhost:3001`.
 3. Thêm thành viên hoặc gửi lời mời vào project.
 4. Tạo task với status, priority, deadline và labels.
 5. Manager chọn assignee cho task; người được giao sẽ thấy thông tin task và nhận notification khi có sự kiện phù hợp.
+6. Mở trợ lý AI ở góc màn hình để hỏi về task/project hoặc yêu cầu tạo dữ liệu bằng tiếng Việt.
 
 ## API và dữ liệu chính
 
@@ -133,6 +152,7 @@ Mở ứng dụng tại `http://localhost:3001`.
 | Task | Tiêu đề, mô tả, status, priority, due date, `assigneeId` và labels. |
 | Label | Tên và màu; có thể gắn vào nhiều task trong cùng project. |
 | Notification | Loại notification, tiêu đề/nội dung và entity liên quan. |
+| AI assistant | Chat có xác thực; hỗ trợ truy vấn dữ liệu theo user và tạo task/project sau khi kiểm tra đầu vào. |
 
 Tài liệu endpoint đầy đủ nằm tại [Backend README](backend/README.md).
 

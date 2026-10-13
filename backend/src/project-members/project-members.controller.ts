@@ -66,10 +66,6 @@ export class ProjectMembersController {
     @Param('projectId') projectId: string,
     @Param('userId') userId: string,
   ) {
-    console.log('DELETE MEMBER ROUTE HIT:', {
-      projectId,
-      userId,
-    });
 
     return this.projectMembersService.remove(projectId, userId);
   }

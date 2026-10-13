@@ -93,7 +93,6 @@ export default function ProjectInvitationNotification() {
 
             setInvitations(data);
         } catch (error) {
-            console.error(error);
 
             toast.error(
                 'Unable to connect to the server.',
@@ -135,19 +134,11 @@ export default function ProjectInvitationNotification() {
         );
 
         socket.on('connect', () => {
-            console.log(
-                'Invitation socket connected:',
-                socket.id,
-            );
         });
 
         socket.on(
             'connect_error',
             (error) => {
-                console.error(
-                    'Invitation socket connection error:',
-                    error,
-                );
             },
         );
 
@@ -159,10 +150,6 @@ export default function ProjectInvitationNotification() {
             (
                 invitation: ProjectInvitation,
             ) => {
-                console.log(
-                    'New project invitation:',
-                    invitation,
-                );
 
                 setInvitations(
                     (current) => {
@@ -196,9 +183,6 @@ export default function ProjectInvitationNotification() {
         socket.on(
             'disconnect',
             () => {
-                console.log(
-                    'Invitation socket disconnected',
-                );
             },
         );
 
@@ -297,7 +281,6 @@ export default function ProjectInvitationNotification() {
                     ),
             );
         } catch (error) {
-            console.error(error);
 
             toast.error(
                 'Unable to connect to the server.',
@@ -364,7 +347,6 @@ export default function ProjectInvitationNotification() {
                     ),
             );
         } catch (error) {
-            console.error(error);
 
             toast.error(
                 'Unable to connect to the server.',

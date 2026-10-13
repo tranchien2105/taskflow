@@ -144,7 +144,6 @@ export default function ProjectsPage() {
                 return;
             }
 
-            console.error(error);
 
             const message =
                 error instanceof Error
@@ -236,7 +235,6 @@ export default function ProjectsPage() {
                 return;
             }
 
-            console.error(error);
 
             const message =
                 error instanceof Error

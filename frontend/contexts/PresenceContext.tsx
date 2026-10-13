@@ -52,10 +52,6 @@ export function PresenceProvider({
          * Socket connected.
          */
         socket.on('connect', () => {
-            console.log(
-                'Presence socket connected:',
-                socket.id,
-            );
         });
 
         /**
@@ -71,10 +67,6 @@ export function PresenceProvider({
             }: {
                 userIds: string[];
             }) => {
-                console.log(
-                    'Current online users:',
-                    userIds,
-                );
 
                 setOnlineUserIds(
                     new Set(userIds),
@@ -92,10 +84,6 @@ export function PresenceProvider({
             }: {
                 userId: string;
             }) => {
-                console.log(
-                    'User online:',
-                    userId,
-                );
 
                 setOnlineUserIds(
                     (current) => {
@@ -120,10 +108,6 @@ export function PresenceProvider({
             }: {
                 userId: string;
             }) => {
-                console.log(
-                    'User offline:',
-                    userId,
-                );
 
                 setOnlineUserIds(
                     (current) => {
@@ -144,10 +128,6 @@ export function PresenceProvider({
         socket.on(
             'connect_error',
             (error) => {
-                console.error(
-                    'Presence socket connection error:',
-                    error,
-                );
             },
         );
 
@@ -157,10 +137,6 @@ export function PresenceProvider({
         socket.on(
             'disconnect',
             (reason) => {
-                console.log(
-                    'Presence socket disconnected:',
-                    reason,
-                );
             },
         );
 

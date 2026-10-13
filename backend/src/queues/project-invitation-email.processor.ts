@@ -12,8 +12,6 @@ export class ProjectInvitationEmailProcessor extends WorkerHost {
   }
 
   async process(job: Job): Promise<void> {
-    console.log('Processing job:', job.id);
-    console.log('Job data:', job.data);
 
     await this.mailService.sendProjectInvitationEmail(
       job.data,

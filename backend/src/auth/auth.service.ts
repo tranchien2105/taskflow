@@ -49,7 +49,6 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto) {
-    console.log('SERVICE loginDto:', loginDto);
     const user = await this.userRepository
       .createQueryBuilder('user')
       .addSelect('user.password')

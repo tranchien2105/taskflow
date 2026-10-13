@@ -70,7 +70,6 @@ export class PresenceGateway
 
       const wasOffline = this.presenceService.addConnection(userId, socket.id);
 
-      console.log(`User ${userId} connected`, socket.id);
 
       const onlineUserIds = this.presenceService.getOnlineUserIds();
 
@@ -84,7 +83,6 @@ export class PresenceGateway
         });
       }
     } catch (error: unknown) {
-      console.error('Presence authentication failed:', error);
 
       socket.disconnect();
     }
@@ -102,7 +100,6 @@ export class PresenceGateway
       socket.id,
     );
 
-    console.log(`User ${userId} disconnected`, socket.id);
 
     if (wentOffline) {
       this.server.emit('user.offline', {

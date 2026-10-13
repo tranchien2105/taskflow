@@ -124,7 +124,6 @@ export default function ProjectDetailPage() {
                 return;
             }
 
-            console.error(error);
 
             toast.error(
                 error instanceof Error
@@ -168,7 +167,6 @@ export default function ProjectDetailPage() {
                 return;
             }
 
-            console.error(error);
 
             toast.error(
                 error instanceof Error
@@ -226,7 +224,6 @@ export default function ProjectDetailPage() {
                 return;
             }
 
-            console.error(error);
 
             toast.error(
                 error instanceof Error

@@ -6,6 +6,7 @@ import './globals.css';
 
 import { AuthProvider } from '@/contexts/AuthContext';
 import { PresenceProvider } from '@/contexts/PresenceContext';
+import AIChatWidget from '@/components/ai-chat/AIChatWidget';
 
 import { Toaster } from 'sonner';
 
@@ -42,6 +43,7 @@ export default function RootLayout({
                 <AuthProvider>
                     <PresenceProvider>
                         {children}
+                        <AIChatWidget />
                     </PresenceProvider>
                 </AuthProvider>
 

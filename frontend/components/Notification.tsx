@@ -65,10 +65,6 @@ export default function Notification() {
 
             setNotifications(data.data);
         } catch (error) {
-            console.error(
-                'Notification REST error:',
-                error,
-            );
 
             toast.error(
                 'Unable to connect to the server.',
@@ -122,10 +118,6 @@ export default function Notification() {
                 ),
             );
         } catch (error) {
-            console.error(
-                'Mark notification as read error:',
-                error,
-            );
 
             toast.error(
                 'Unable to update notification.',
@@ -183,10 +175,6 @@ export default function Notification() {
                 'All notifications marked as read.',
             );
         } catch (error) {
-            console.error(
-                'Mark all notifications as read error:',
-                error,
-            );
 
             toast.error(
                 'Unable to update notifications.',
@@ -238,29 +226,17 @@ export default function Notification() {
         );
 
         socket.on('connect', () => {
-            console.log(
-                'Notification socket connected:',
-                socket.id,
-            );
         });
 
         socket.on(
             'connect_error',
             (error) => {
-                console.error(
-                    'Notification socket connection error:',
-                    error,
-                );
             },
         );
 
         socket.on(
             'notification',
             (notification: Notification) => {
-                console.log(
-                    '🔥 NEW NOTIFICATION:',
-                    notification,
-                );
 
                 setNotifications((current) => {
                     const alreadyExists =
@@ -287,10 +263,6 @@ export default function Notification() {
         );
 
         socket.on('disconnect', (reason) => {
-            console.log(
-                'Notification socket disconnected:',
-                reason,
-            );
         });
 
         return () => {
